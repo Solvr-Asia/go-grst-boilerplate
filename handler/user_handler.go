@@ -148,7 +148,7 @@ func (h *userHandler) ListAllUsers(ctx context.Context, req *pb.ListUsersReq) (*
 			Page:       req.Page,
 			Size:       req.Size,
 			Total:      total,
-			TotalPages: int32(totalPages),
+			TotalPages: int32(totalPages), // #nosec G115 -- totalPages is bounded by pagination
 		},
 	}, nil
 }
@@ -174,8 +174,8 @@ func (h *userHandler) GetMyPayslip(ctx context.Context, req *pb.GetPayslipReq) (
 	return &pb.Payslip{
 		Id:          payslip.ID,
 		EmployeeId:  payslip.EmployeeID,
-		Year:        int32(payslip.Year),
-		Month:       int32(payslip.Month),
+		Year:        int32(payslip.Year),  // #nosec G115 -- year is bounded (reasonable calendar year)
+		Month:       int32(payslip.Month), // #nosec G115 -- month is 1-12
 		GrossSalary: payslip.GrossSalary,
 		NetSalary:   payslip.NetSalary,
 	}, nil

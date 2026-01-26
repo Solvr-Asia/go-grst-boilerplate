@@ -281,12 +281,12 @@ func runCreate(migrationsPath, name string) {
 	upContent := fmt.Sprintf("-- %06d_%s.up.sql\n-- Created at: %s\n\n-- Add your migration SQL here\n", nextNum, name, timestamp)
 	downContent := fmt.Sprintf("-- %06d_%s.down.sql\n-- Created at: %s\n\n-- Add your rollback SQL here\n", nextNum, name, timestamp)
 
-	if err := os.WriteFile(upFile, []byte(upContent), 0644); err != nil {
+	if err := os.WriteFile(upFile, []byte(upContent), 0600); err != nil {
 		fmt.Printf("Failed to create up migration: %v\n", err)
 		os.Exit(1)
 	}
 
-	if err := os.WriteFile(downFile, []byte(downContent), 0644); err != nil {
+	if err := os.WriteFile(downFile, []byte(downContent), 0600); err != nil {
 		fmt.Printf("Failed to create down migration: %v\n", err)
 		os.Exit(1)
 	}

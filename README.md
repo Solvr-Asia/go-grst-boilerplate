@@ -485,6 +485,70 @@ app.Use(middleware.UserRateLimiter(config))
 app.Use(middleware.APIKeyRateLimiter(config, "X-API-Key"))
 ```
 
+## Security (OWASP Top 10)
+
+This boilerplate implements security best practices following the [OWASP Top 10](https://owasp.org/www-project-top-ten/):
+
+| OWASP Risk | Implementation |
+|------------|----------------|
+| **A01: Broken Access Control** | Role-based access control (RBAC) middleware, resource ownership verification |
+| **A02: Cryptographic Failures** | bcrypt password hashing, secure JWT secrets, TLS enforcement |
+| **A03: Injection** | Parameterized queries with GORM, input validation with go-playground/validator |
+| **A04: Insecure Design** | Rate limiting, account lockout, secure defaults |
+| **A05: Security Misconfiguration** | Environment-based config, secure CORS, security headers |
+| **A06: Vulnerable Components** | CI/CD with gosec and Trivy scanning, dependabot |
+| **A07: Auth Failures** | Strong password policy, JWT expiration, failed login tracking |
+| **A08: Data Integrity** | Request validation, file checksum verification |
+| **A09: Logging Failures** | Structured security logging with Zap, audit trails |
+| **A10: SSRF** | URL whitelist validation, internal IP blocking |
+
+### Security Features
+
+```go
+// Role-based access control
+app.Get("/admin/users",
+    middleware.AuthMiddleware(jwtService),
+    middleware.RequireRoles("admin", "superadmin"),
+    handler.ListUsers,
+)
+
+// Input validation
+type RegisterRequest struct {
+    Email    string `json:"email" validate:"required,email"`
+    Password string `json:"password" validate:"required,min=8,password"`
+    Name     string `json:"name" validate:"required,min=2,max=100"`
+}
+
+// Secure password hashing
+hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+
+// Parameterized queries (SQL injection prevention)
+db.Where("email = ?", email).First(&user)
+```
+
+### Security Scanning
+
+The CI/CD pipeline includes:
+
+```yaml
+# .github/workflows/ci.yml
+- gosec: Static security analysis
+- trivy: Container vulnerability scanning
+- golangci-lint: Code quality with security linters
+```
+
+Run locally:
+
+```bash
+# Install gosec
+go install github.com/securego/gosec/v2/cmd/gosec@latest
+
+# Run security scan
+gosec ./...
+```
+
+See [CLAUDE.md](CLAUDE.md) for detailed security guidelines and code examples.
+
 ## Prometheus Metrics
 
 Automatic HTTP metrics collection with `/metrics` endpoint:
@@ -537,7 +601,19 @@ docs.SetupSwagger(app)
 
 ## Docker
 
-### Build Image
+### Pull from GitHub Container Registry
+
+```bash
+# Pull latest version
+docker pull ghcr.io/yourusername/go-grst-boilerplate:latest
+
+# Pull specific version (semantic versioning)
+docker pull ghcr.io/yourusername/go-grst-boilerplate:1.0.0
+docker pull ghcr.io/yourusername/go-grst-boilerplate:1.0
+docker pull ghcr.io/yourusername/go-grst-boilerplate:1
+```
+
+### Build Image Locally
 
 ```bash
 make docker
@@ -554,6 +630,47 @@ docker-compose logs -f app
 
 # Stop all services
 docker-compose down
+```
+
+## Semantic Versioning
+
+This project follows [Semantic Versioning](https://semver.org/) (SemVer):
+
+- **MAJOR** version (X.0.0): Breaking changes
+- **MINOR** version (0.X.0): New features (backward compatible)
+- **PATCH** version (0.0.X): Bug fixes (backward compatible)
+
+### Creating a Release
+
+```bash
+# Create a new release tag
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+
+# Or use make command
+make release VERSION=1.0.0
+```
+
+### Conventional Commits
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) for automatic changelog generation:
+
+| Type | Description | Version Bump |
+|------|-------------|--------------|
+| `feat:` | New feature | Minor |
+| `fix:` | Bug fix | Patch |
+| `perf:` | Performance improvement | Patch |
+| `refactor:` | Code refactoring | None |
+| `docs:` | Documentation | None |
+| `test:` | Tests | None |
+| `chore:` | Maintenance | None |
+| `BREAKING CHANGE:` | Breaking change | Major |
+
+Examples:
+```bash
+git commit -m "feat: add user authentication"
+git commit -m "fix: resolve login timeout issue"
+git commit -m "feat!: redesign API response format"  # Breaking change
 ```
 
 ## Observability

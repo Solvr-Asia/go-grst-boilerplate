@@ -1,4 +1,4 @@
-.PHONY: proto build run test docker clean deps migrate lint migrate-up migrate-down migrate-rollback migrate-status migrate-create seed fresh refresh reset
+.PHONY: proto build run test docker clean deps migrate lint migrate-up migrate-down migrate-rollback migrate-status migrate-create seed fresh refresh reset release
 
 # Application
 APP_NAME=go-grst-boilerplate
@@ -165,7 +165,46 @@ install-tools:
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 	go install github.com/air-verse/air@latest
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install github.com/securego/gosec/v2/cmd/gosec@latest
 	@echo "Development tools installed"
+
+# ==================== Release ====================
+
+# Create a new release (usage: make release VERSION=1.0.0)
+release:
+ifndef VERSION
+	$(error VERSION is not set. Usage: make release VERSION=1.0.0)
+endif
+	@echo "Creating release v$(VERSION)..."
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo "Error: Working directory is not clean. Commit or stash changes first."; \
+		exit 1; \
+	fi
+	git tag -a v$(VERSION) -m "Release v$(VERSION)"
+	git push origin v$(VERSION)
+	@echo "Release v$(VERSION) created and pushed"
+
+# Create a release candidate (usage: make release-rc VERSION=1.0.0-rc.1)
+release-rc:
+ifndef VERSION
+	$(error VERSION is not set. Usage: make release-rc VERSION=1.0.0-rc.1)
+endif
+	@echo "Creating release candidate v$(VERSION)..."
+	git tag -a v$(VERSION) -m "Release candidate v$(VERSION)"
+	git push origin v$(VERSION)
+	@echo "Release candidate v$(VERSION) created and pushed"
+
+# Delete a release tag (usage: make release-delete VERSION=1.0.0)
+release-delete:
+ifndef VERSION
+	$(error VERSION is not set. Usage: make release-delete VERSION=1.0.0)
+endif
+	@echo "Deleting release v$(VERSION)..."
+	git tag -d v$(VERSION) || true
+	git push origin :refs/tags/v$(VERSION) || true
+	@echo "Release v$(VERSION) deleted"
+
+# ==================== End Release ====================
 
 # Help
 help:
@@ -200,6 +239,11 @@ help:
 	@echo "  make docker-run     - Run Docker container"
 	@echo "  make compose-up     - Start with docker-compose"
 	@echo "  make compose-down   - Stop docker-compose"
+	@echo ""
+	@echo "Release (Semantic Versioning):"
+	@echo "  make release VERSION=x.y.z    - Create and push a release tag"
+	@echo "  make release-rc VERSION=x.y.z-rc.1 - Create release candidate"
+	@echo "  make release-delete VERSION=x.y.z - Delete a release tag"
 	@echo ""
 	@echo "Other:"
 	@echo "  make proto          - Generate code from proto files"

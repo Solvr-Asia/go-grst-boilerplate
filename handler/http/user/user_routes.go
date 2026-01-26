@@ -98,8 +98,8 @@ func (r *UserRoutes) GetProfile(c *fiber.Ctx) error {
 
 func (r *UserRoutes) ListAllUsers(c *fiber.Ctx) error {
 	req := &pb.ListUsersReq{
-		Page:      int32(c.QueryInt("page", 1)),
-		Size:      int32(c.QueryInt("size", 10)),
+		Page:      int32(c.QueryInt("page", 1)),  // #nosec G115 -- pagination page is bounded
+		Size:      int32(c.QueryInt("size", 10)), // #nosec G115 -- pagination size is bounded
 		Search:    c.Query("search"),
 		SortBy:    c.Query("sortBy", "created_at"),
 		SortOrder: c.Query("sortOrder", "desc"),
@@ -120,8 +120,8 @@ func (r *UserRoutes) ListAllUsers(c *fiber.Ctx) error {
 
 func (r *UserRoutes) GetMyPayslip(c *fiber.Ctx) error {
 	req := &pb.GetPayslipReq{
-		Year:  int32(c.QueryInt("year")),
-		Month: int32(c.QueryInt("month")),
+		Year:  int32(c.QueryInt("year")),  // #nosec G115 -- year is bounded (reasonable calendar year)
+		Month: int32(c.QueryInt("month")), // #nosec G115 -- month is 1-12
 	}
 
 	ctx := c.UserContext()

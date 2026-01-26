@@ -135,7 +135,7 @@ func formatFieldError(e validator.FieldError) string {
 
 func registerCustomValidators(v *validator.Validate) {
 	// Register phone validator (Indonesian format)
-	v.RegisterValidation("phone", func(fl validator.FieldLevel) bool {
+	if err := v.RegisterValidation("phone", func(fl validator.FieldLevel) bool {
 		phone := fl.Field().String()
 		if phone == "" {
 			return true
@@ -154,10 +154,12 @@ func registerCustomValidators(v *validator.Validate) {
 			return false
 		}
 		return true
-	})
+	}); err != nil {
+		panic(fmt.Sprintf("failed to register phone validator: %v", err))
+	}
 
 	// Register password strength validator
-	v.RegisterValidation("password", func(fl validator.FieldLevel) bool {
+	if err := v.RegisterValidation("password", func(fl validator.FieldLevel) bool {
 		password := fl.Field().String()
 		if len(password) < 8 {
 			return false
@@ -174,10 +176,12 @@ func registerCustomValidators(v *validator.Validate) {
 			}
 		}
 		return hasUpper && hasLower && hasNumber
-	})
+	}); err != nil {
+		panic(fmt.Sprintf("failed to register password validator: %v", err))
+	}
 
 	// Register indonesian NIK (ID number) validator
-	v.RegisterValidation("nik", func(fl validator.FieldLevel) bool {
+	if err := v.RegisterValidation("nik", func(fl validator.FieldLevel) bool {
 		nik := fl.Field().String()
 		if nik == "" {
 			return true
@@ -191,7 +195,9 @@ func registerCustomValidators(v *validator.Validate) {
 			}
 		}
 		return true
-	})
+	}); err != nil {
+		panic(fmt.Sprintf("failed to register nik validator: %v", err))
+	}
 }
 
 // Validator wraps the go-playground validator
