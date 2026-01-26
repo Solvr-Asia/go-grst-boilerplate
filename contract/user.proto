@@ -1,0 +1,88 @@
+syntax = "proto3";
+package user;
+option go_package = "go-grst-boilerplate/handler/grpc/user";
+
+import "google/protobuf/empty.proto";
+
+service UserApi {
+    // Public endpoint - no auth required
+    rpc Register(RegisterReq) returns (RegisterRes);
+
+    // Public endpoint - no auth required
+    rpc Login(LoginReq) returns (LoginRes);
+
+    // Protected endpoint - requires authentication
+    rpc GetProfile(google.protobuf.Empty) returns (UserProfile);
+
+    // Role-based access - admin only
+    rpc ListAllUsers(ListUsersReq) returns (ListUsersRes);
+
+    // Employee-only endpoint
+    rpc GetMyPayslip(GetPayslipReq) returns (Payslip);
+}
+
+message RegisterReq {
+    string email = 1 [json_name = "email"];
+    string password = 2 [json_name = "password"];
+    string name = 3 [json_name = "name"];
+    string phone = 4 [json_name = "phone"];
+}
+
+message RegisterRes {
+    string id = 1 [json_name = "id"];
+    string email = 2 [json_name = "email"];
+    string name = 3 [json_name = "name"];
+}
+
+message LoginReq {
+    string email = 1 [json_name = "email"];
+    string password = 2 [json_name = "password"];
+}
+
+message LoginRes {
+    string token = 1 [json_name = "token"];
+    UserProfile user = 2 [json_name = "user"];
+}
+
+message UserProfile {
+    string id = 1 [json_name = "id"];
+    string email = 2 [json_name = "email"];
+    string name = 3 [json_name = "name"];
+    string phone = 4 [json_name = "phone"];
+    string status = 5 [json_name = "status"];
+    string created_at = 6 [json_name = "createdAt"];
+}
+
+message ListUsersReq {
+    int32 page = 1 [json_name = "page"];
+    int32 size = 2 [json_name = "size"];
+    string search = 3 [json_name = "search"];
+    string sort_by = 4 [json_name = "sortBy"];
+    string sort_order = 5 [json_name = "sortOrder"];
+}
+
+message ListUsersRes {
+    repeated UserProfile users = 1 [json_name = "users"];
+    Pagination pagination = 2 [json_name = "pagination"];
+}
+
+message Pagination {
+    int32 page = 1 [json_name = "page"];
+    int32 size = 2 [json_name = "size"];
+    int64 total = 3 [json_name = "total"];
+    int32 total_pages = 4 [json_name = "totalPages"];
+}
+
+message GetPayslipReq {
+    int32 year = 1 [json_name = "year"];
+    int32 month = 2 [json_name = "month"];
+}
+
+message Payslip {
+    string id = 1 [json_name = "id"];
+    string employee_id = 2 [json_name = "employeeId"];
+    int32 year = 3 [json_name = "year"];
+    int32 month = 4 [json_name = "month"];
+    double gross_salary = 5 [json_name = "grossSalary"];
+    double net_salary = 6 [json_name = "netSalary"];
+}
