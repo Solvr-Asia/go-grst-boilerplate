@@ -68,7 +68,7 @@ func New(cfg Config, logger *zap.Logger) (*Client, error) {
 
 	channel, err := conn.Channel()
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("failed to open channel: %w", err)
 	}
 
@@ -87,7 +87,7 @@ func (c *Client) Close() error {
 	defer c.mu.Unlock()
 
 	if c.channel != nil {
-		c.channel.Close()
+		_ = c.channel.Close()
 	}
 	if c.conn != nil {
 		return c.conn.Close()
@@ -213,11 +213,21 @@ func (c *Client) ConsumeWithHandler(ctx context.Context, opts ConsumeOptions, ha
 					)
 					span.RecordError(err)
 					if !opts.AutoAck {
-						msg.Nack(false, true)
+						if nackErr := msg.Nack(false, true); nackErr != nil {
+							c.logger.Error("Failed to nack message",
+								zap.Error(nackErr),
+								zap.String("queue", opts.Queue),
+							)
+						}
 					}
 				} else {
 					if !opts.AutoAck {
-						msg.Ack(false)
+						if ackErr := msg.Ack(false); ackErr != nil {
+							c.logger.Error("Failed to ack message",
+								zap.Error(ackErr),
+								zap.String("queue", opts.Queue),
+							)
+						}
 					}
 				}
 				span.End()

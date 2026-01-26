@@ -70,7 +70,7 @@ func New() (*Config, error) {
 	v.SetConfigType("env")
 
 	// Read config file (ignore error if not found)
-	_ = v.ReadInConfig()
+	_ = v.ReadInConfig() //nolint:errcheck
 
 	// Read from environment variables
 	v.AutomaticEnv()

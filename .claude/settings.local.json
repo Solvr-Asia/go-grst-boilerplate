@@ -5,7 +5,9 @@
       "Bash(go build:*)",
       "WebFetch(domain:github.com)",
       "Bash(find:*)",
-      "Bash(go mod download:*)"
+      "Bash(go mod download:*)",
+      "Bash(tree:*)",
+      "Bash(git -C /Users/krisnasatriawijayanto/Work/go-grst-boilerplate log --oneline -10)"
     ]
   }
 }

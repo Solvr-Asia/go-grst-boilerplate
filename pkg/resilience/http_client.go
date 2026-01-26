@@ -75,7 +75,7 @@ func (c *HTTPClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 		// Treat 5xx as errors for circuit breaker
 		if resp.StatusCode >= 500 {
 			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			return nil, fmt.Errorf("server error: %d - %s", resp.StatusCode, string(body))
 		}
 

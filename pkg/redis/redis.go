@@ -43,13 +43,13 @@ func New(cfg Config) (*Client, error) {
 			}
 			if cfg.Password != "" {
 				if _, err := c.Do("AUTH", cfg.Password); err != nil {
-					c.Close()
+					_ = c.Close()
 					return nil, err
 				}
 			}
 			if cfg.DB != 0 {
 				if _, err := c.Do("SELECT", cfg.DB); err != nil {
-					c.Close()
+					_ = c.Close()
 					return nil, err
 				}
 			}
@@ -66,7 +66,7 @@ func New(cfg Config) (*Client, error) {
 
 	// Test connection
 	conn := pool.Get()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	if _, err := conn.Do("PING"); err != nil {
 		return nil, fmt.Errorf("failed to connect to redis: %w", err)
@@ -94,7 +94,7 @@ func (c *Client) Set(ctx context.Context, key string, value interface{}, expirat
 	defer span.End()
 
 	conn := c.pool.Get()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -121,7 +121,7 @@ func (c *Client) Get(ctx context.Context, key string, dest interface{}) error {
 	defer span.End()
 
 	conn := c.pool.Get()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	data, err := redis.Bytes(conn.Do("GET", key))
 	if err != nil {
@@ -146,7 +146,7 @@ func (c *Client) GetString(ctx context.Context, key string) (string, error) {
 	defer span.End()
 
 	conn := c.pool.Get()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	val, err := redis.String(conn.Do("GET", key))
 	if err != nil {
@@ -166,7 +166,7 @@ func (c *Client) Delete(ctx context.Context, keys ...string) error {
 	defer span.End()
 
 	conn := c.pool.Get()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	args := make([]interface{}, len(keys))
 	for i, key := range keys {
@@ -187,7 +187,7 @@ func (c *Client) Exists(ctx context.Context, key string) (bool, error) {
 	defer span.End()
 
 	conn := c.pool.Get()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	exists, err := redis.Bool(conn.Do("EXISTS", key))
 	if err != nil {
@@ -204,7 +204,7 @@ func (c *Client) SetNX(ctx context.Context, key string, value interface{}, expir
 	defer span.End()
 
 	conn := c.pool.Get()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -244,7 +244,7 @@ func (c *Client) Incr(ctx context.Context, key string) (int64, error) {
 	defer span.End()
 
 	conn := c.pool.Get()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	val, err := redis.Int64(conn.Do("INCR", key))
 	if err != nil {
@@ -261,7 +261,7 @@ func (c *Client) Expire(ctx context.Context, key string, expiration time.Duratio
 	defer span.End()
 
 	conn := c.pool.Get()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	_, err := conn.Do("EXPIRE", key, int(expiration.Seconds()))
 	if err != nil {
@@ -280,7 +280,7 @@ func (c *Client) HSet(ctx context.Context, key, field string, value interface{})
 	defer span.End()
 
 	conn := c.pool.Get()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -305,7 +305,7 @@ func (c *Client) HGet(ctx context.Context, key, field string, dest interface{}) 
 	defer span.End()
 
 	conn := c.pool.Get()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	data, err := redis.Bytes(conn.Do("HGET", key, field))
 	if err != nil {
@@ -330,7 +330,7 @@ func (c *Client) HGetAll(ctx context.Context, key string) (map[string]string, er
 	defer span.End()
 
 	conn := c.pool.Get()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	result, err := redis.StringMap(conn.Do("HGETALL", key))
 	if err != nil {
@@ -347,7 +347,7 @@ func (c *Client) Publish(ctx context.Context, channel string, message interface{
 	defer span.End()
 
 	conn := c.pool.Get()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	data, err := json.Marshal(message)
 	if err != nil {

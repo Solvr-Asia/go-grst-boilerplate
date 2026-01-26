@@ -96,7 +96,12 @@ func (l *Logger) Sync() error {
 // Global logger functions
 func L() *zap.Logger {
 	if globalLogger == nil {
-		globalLogger, _ = zap.NewProduction()
+		var err error
+		globalLogger, err = zap.NewProduction()
+		if err != nil {
+			// Fallback to no-op logger to prevent nil pointer panic
+			globalLogger = zap.NewNop()
+		}
 	}
 	return globalLogger
 }
