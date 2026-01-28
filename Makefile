@@ -29,13 +29,13 @@ proto:
 build:
 	@echo "Building $(APP_NAME)..."
 	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) -o $(BUILD_DIR)/$(APP_NAME) main.go
+	$(GOBUILD) -o $(BUILD_DIR)/$(APP_NAME) ./cmd/server
 	@echo "Build completed: $(BUILD_DIR)/$(APP_NAME)"
 
 # Run the application
 run:
 	@echo "Running $(APP_NAME)..."
-	$(GORUN) main.go
+	$(GORUN) ./cmd/server
 
 # Run the application with hot reload (requires air)
 dev:

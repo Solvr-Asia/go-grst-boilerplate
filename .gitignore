@@ -46,3 +46,6 @@ tmp/
 # Build output
 dist/
 build/
+
+.claude
+openspec

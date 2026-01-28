@@ -9,7 +9,9 @@
       "Bash(tree:*)",
       "Bash(git -C /Users/krisnasatriawijayanto/Work/go-grst-boilerplate log --oneline -10)",
       "Bash(go test:*)",
-      "Bash(go vet:*)"
+      "Bash(go vet:*)",
+      "Bash(ls:*)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"go-grst-boilerplate/config"
 	"go-grst-boilerplate/entity"
 
 	"go.uber.org/zap"
@@ -66,16 +65,27 @@ func (l *zapGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (s
 	l.logger.Debug("gorm query", fields...)
 }
 
-func New(cfg *config.Config, zapLogger *zap.Logger) (*gorm.DB, error) {
+// Config holds database connection parameters.
+type Config struct {
+	Host     string
+	Port     int
+	User     string
+	Password string
+	Name     string
+	SSLMode  string
+	Timezone string
+}
+
+func New(cfg Config, zapLogger *zap.Logger) (*gorm.DB, error) {
 	dsn := fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
-		cfg.DBHost,
-		cfg.DBPort,
-		cfg.DBUser,
-		cfg.DBPassword,
-		cfg.DBName,
-		cfg.DBSSLMode,
-		cfg.DBTimezone,
+		cfg.Host,
+		cfg.Port,
+		cfg.User,
+		cfg.Password,
+		cfg.Name,
+		cfg.SSLMode,
+		cfg.Timezone,
 	)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
@@ -101,9 +111,9 @@ func New(cfg *config.Config, zapLogger *zap.Logger) (*gorm.DB, error) {
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	zapLogger.Info("Database connection established",
-		zap.String("host", cfg.DBHost),
-		zap.Int("port", cfg.DBPort),
-		zap.String("database", cfg.DBName),
+		zap.String("host", cfg.Host),
+		zap.Int("port", cfg.Port),
+		zap.String("database", cfg.Name),
 	)
 
 	return db, nil

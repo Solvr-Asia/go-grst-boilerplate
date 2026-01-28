@@ -129,7 +129,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("OTEL_ENABLED", true)
 	v.SetDefault("OTEL_ENDPOINT", "localhost:4317")
 	v.SetDefault("OTEL_SERVICE_NAME", "go-grst-boilerplate")
-	v.SetDefault("OTEL_EXPORTER_TYPE", "stdout")
+	v.SetDefault("OTEL_EXPORTER_TYPE", "noop")
 
 	// Logger
 	v.SetDefault("LOG_LEVEL", "info")
