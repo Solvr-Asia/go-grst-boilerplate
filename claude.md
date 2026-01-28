@@ -24,12 +24,13 @@ This is a Go monolithic application using:
 ## Architecture Layers
 
 ```
+cmd/server/     → Application entry point
+config/         → Configuration, bootstrap, and infrastructure init
 handler/        → Presentation layer (HTTP/gRPC handlers)
 app/usecase/    → Business logic layer
 repository/     → Data access layer
 entity/         → Domain entities
 pkg/            → Shared utilities and infrastructure
-config/         → Configuration management
 ```
 
 **Data Flow:**
@@ -898,14 +899,11 @@ func isInternalIP(ip net.IP) bool {
 # Run application
 make run
 
-# Run tests
-make test
-
-# Run tests with race detection
-go test -race ./...
-
 # Build application
 make build
+
+# Run with hot reload
+make dev
 
 # Docker compose
 make compose-up
@@ -913,6 +911,11 @@ make compose-down
 
 # Generate proto (if using protobuf)
 make proto
+
+# Database migrations
+make migrate
+make migrate-create name=create_orders_table
+make fresh-seed
 ```
 
 ---

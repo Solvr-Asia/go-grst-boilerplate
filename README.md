@@ -20,7 +20,7 @@ A production-ready Go monolithic application boilerplate using **Go Fiber** for 
 - **Rate Limiting**: Request throttling with configurable limits
 - **Metrics**: Prometheus metrics with `/metrics` endpoint
 - **API Documentation**: OpenAPI/Swagger with Scalar UI
-- **CI/CD**: GitHub Actions for lint, test, build, and docker
+- **CI/CD**: GitHub Actions for build, docker, and release
 
 ## Tech Stack
 
@@ -47,12 +47,20 @@ A production-ready Go monolithic application boilerplate using **Go Fiber** for 
 
 ```
 go-grst-boilerplate/
-├── main.go                     # Application entry point
 ├── cmd/
+│   ├── server/                 # Application entry point
+│   │   └── main.go
 │   └── migrate/                # Migration CLI tool
 │       └── main.go
 ├── config/
-│   └── config.go               # Viper configuration
+│   ├── config.go               # Viper configuration & Config struct
+│   ├── bootstrap.go            # Dependency wiring (repos, usecases, routes)
+│   ├── fiber.go                # Fiber app, CORS, middleware, error handler
+│   ├── database.go             # Database init + auto-migrate
+│   ├── logger.go               # Zap logger init
+│   ├── telemetry.go            # OpenTelemetry init
+│   ├── redis.go                # Redis client init
+│   └── rabbitmq.go             # RabbitMQ client init
 ├── migrations/                 # SQL migration files
 │   ├── 000001_create_users_table.up.sql
 │   ├── 000001_create_users_table.down.sql
@@ -99,7 +107,7 @@ go-grst-boilerplate/
 ├── docs/                       # API documentation
 │   └── swagger.go              # OpenAPI spec + Scalar UI
 ├── .github/workflows/          # CI/CD pipelines
-│   ├── ci.yml                  # Lint, test, build
+│   ├── ci.yml                  # Build & Docker
 │   └── release.yml             # Release automation
 ├── docker-compose.yml          # Infrastructure services
 ├── Dockerfile                  # Multi-stage build
@@ -108,7 +116,7 @@ go-grst-boilerplate/
 ├── .goreleaser.yml             # Release configuration
 ├── LICENSE                     # MIT License
 ├── .env.example                # Environment template
-├── claude.md                   # AI coding guidelines
+├── CLAUDE.md                   # AI coding guidelines
 └── README.md
 ```
 
