@@ -5,10 +5,10 @@ import (
 	"go-grst-boilerplate/handler"
 	pb_user "go-grst-boilerplate/handler/grpc/user"
 	http_user "go-grst-boilerplate/handler/http/user"
-	"go-grst-boilerplate/pkg/jwt"
 	"go-grst-boilerplate/pkg/middleware"
 	"go-grst-boilerplate/pkg/rabbitmq"
 	"go-grst-boilerplate/pkg/redis"
+	"go-grst-boilerplate/pkg/token"
 	"go-grst-boilerplate/repository/user_repository"
 
 	"github.com/gofiber/fiber/v2"
@@ -38,7 +38,7 @@ func Bootstrap(b *BootstrapConfig) *BootstrapResult {
 	// Layers
 	userRepo := user_repository.New(b.DB)
 	userUC := user.NewUseCase(userRepo)
-	tokenService := jwt.NewTokenService(b.Cfg.JWTSecret, b.Cfg.JWTExpiration)
+	tokenService := token.NewTokenService(b.Cfg.JWTSecret, b.Cfg.JWTExpiration)
 	userHandler := handler.NewUserHandler(userUC, tokenService)
 
 	// Token validator
@@ -61,7 +61,7 @@ func Bootstrap(b *BootstrapConfig) *BootstrapResult {
 	}
 }
 
-func createTokenValidator(tokenService *jwt.TokenService) middleware.TokenValidator {
+func createTokenValidator(tokenService *token.TokenService) middleware.TokenValidator {
 	return func(token string) (*middleware.AuthContext, error) {
 		claims, err := tokenService.ValidateToken(token)
 		if err != nil {

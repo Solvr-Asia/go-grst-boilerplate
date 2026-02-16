@@ -53,14 +53,6 @@ func (m *MockUserRepository) Delete(ctx context.Context, id string) error {
 	return args.Error(0)
 }
 
-func (m *MockUserRepository) FindPayslip(ctx context.Context, employeeID string, year, month int) (*entity.Payslip, error) {
-	args := m.Called(ctx, employeeID, year, month)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*entity.Payslip), args.Error(1)
-}
-
 func TestRegister_Success(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	uc := NewUseCase(mockRepo)
@@ -182,5 +174,67 @@ func TestListAll_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedTotal, total)
 	assert.Len(t, users, 2)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestUpdateUser_Success(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	uc := NewUseCase(mockRepo)
+	ctx := context.Background()
+
+	userID := "user-123"
+	existingUser := &entity.User{
+		ID:     userID,
+		Email:  "test@example.com",
+		Name:   "Old Name",
+		Phone:  "081234567890",
+		Status: entity.UserStatusActive,
+	}
+
+	mockRepo.On("FindByID", ctx, userID).Return(existingUser, nil)
+	mockRepo.On("Update", ctx, mock.AnythingOfType("*entity.User")).Return(nil)
+
+	result, err := uc.UpdateUser(ctx, userID, UpdateInput{
+		Name:  "New Name",
+		Phone: "089876543210",
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "New Name", result.Name)
+	assert.Equal(t, "089876543210", result.Phone)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestDeleteUser_Success(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	uc := NewUseCase(mockRepo)
+	ctx := context.Background()
+
+	userID := "user-123"
+	existingUser := &entity.User{ID: userID}
+
+	mockRepo.On("FindByID", ctx, userID).Return(existingUser, nil)
+	mockRepo.On("Delete", ctx, userID).Return(nil)
+
+	err := uc.DeleteUser(ctx, userID)
+
+	assert.NoError(t, err)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestDeleteUser_NotFound(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	uc := NewUseCase(mockRepo)
+	ctx := context.Background()
+
+	userID := "non-existent"
+
+	mockRepo.On("FindByID", ctx, userID).Return(nil, gorm.ErrRecordNotFound)
+
+	err := uc.DeleteUser(ctx, userID)
+
+	assert.Error(t, err)
+	assert.Equal(t, ErrNotFound, err)
 	mockRepo.AssertExpectations(t)
 }

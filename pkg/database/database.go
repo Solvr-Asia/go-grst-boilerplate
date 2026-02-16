@@ -66,31 +66,55 @@ func (l *zapGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (s
 }
 
 // Config holds database connection parameters.
+// Supports passwordless authentication when Password is empty (e.g., peer authentication).
 type Config struct {
 	Host     string
 	Port     int
 	User     string
-	Password string
+	Password string // Optional: leave empty for passwordless auth (e.g., peer, trust, IAM)
 	Name     string
 	SSLMode  string
 	Timezone string
+	
+	// Performance Settings
+	PrepareStmt            bool // Enable prepared statement cache (recommended: true)
+	SkipDefaultTransaction bool // Disable default transactions for write operations (use with caution)
 }
 
 func New(cfg Config, zapLogger *zap.Logger) (*gorm.DB, error) {
+	// Build DSN with optional password support (for passwordless auth)
 	dsn := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
+		"host=%s port=%d user=%s dbname=%s sslmode=%s TimeZone=%s",
 		cfg.Host,
 		cfg.Port,
 		cfg.User,
-		cfg.Password,
 		cfg.Name,
 		cfg.SSLMode,
 		cfg.Timezone,
 	)
+	
+	// Only include password if provided (supports passwordless auth)
+	if cfg.Password != "" {
+		dsn = fmt.Sprintf(
+			"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
+			cfg.Host,
+			cfg.Port,
+			cfg.User,
+			cfg.Password,
+			cfg.Name,
+			cfg.SSLMode,
+			cfg.Timezone,
+		)
+	}
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: newZapGormLogger(zapLogger),
-	})
+	// Configure GORM with performance optimizations
+	gormConfig := &gorm.Config{
+		Logger:                 newZapGormLogger(zapLogger),
+		PrepareStmt:            cfg.PrepareStmt,            // (PERF) Cache prepared statements
+		SkipDefaultTransaction: cfg.SkipDefaultTransaction, // (PERF) Skip transactions for better performance
+	}
+
+	db, err := gorm.Open(postgres.Open(dsn), gormConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
@@ -114,6 +138,8 @@ func New(cfg Config, zapLogger *zap.Logger) (*gorm.DB, error) {
 		zap.String("host", cfg.Host),
 		zap.Int("port", cfg.Port),
 		zap.String("database", cfg.Name),
+		zap.Bool("prepare_stmt", cfg.PrepareStmt),
+		zap.Bool("skip_default_transaction", cfg.SkipDefaultTransaction),
 	)
 
 	return db, nil
@@ -122,11 +148,79 @@ func New(cfg Config, zapLogger *zap.Logger) (*gorm.DB, error) {
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&entity.User{},
-		&entity.Payslip{},
 	)
 }
 
 // WithContext returns a new DB with context for tracing
 func WithContext(db *gorm.DB, ctx context.Context) *gorm.DB {
 	return db.WithContext(ctx)
+}
+
+// Performance Helper Functions
+
+// WithPreparedStmt creates a session with prepared statement enabled (performance boost)
+// Use this for repeated queries with different parameters
+//
+// Example:
+//
+//	tx := database.WithPreparedStmt(db)
+//	tx.First(&user, 1)
+//	tx.Find(&users)
+func WithPreparedStmt(db *gorm.DB) *gorm.DB {
+	return db.Session(&gorm.Session{PrepareStmt: true})
+}
+
+// WithTransaction creates a function that runs operations within a transaction
+// Only use when you need ACID guarantees (SkipDefaultTransaction bypasses this)
+//
+// Example:
+//
+//	err := database.WithTransaction(db, func(tx *gorm.DB) error {
+//	    if err := tx.Create(&user).Error; err != nil {
+//	        return err
+//	    }
+//	    if err := tx.Create(&profile).Error; err != nil {
+//	        return err
+//	    }
+//	    return nil
+//	})
+func WithTransaction(db *gorm.DB, fn func(*gorm.DB) error) error {
+	return db.Transaction(fn)
+}
+
+// BatchProcessor defines a function type for processing records in batches
+type BatchProcessor func(tx *gorm.DB, batch int) error
+
+// FindInBatches processes records in batches to reduce memory usage
+// Useful for large datasets that don't fit in memory
+//
+// Example:
+//
+//	err := database.FindInBatches(db, &users, 1000, func(tx *gorm.DB, batch int) error {
+//	    for _, user := range users {
+//	        // Process each user
+//	    }
+//	    return nil
+//	})
+func FindInBatches(db *gorm.DB, dest interface{}, batchSize int, processor BatchProcessor) error {
+	return db.FindInBatches(dest, batchSize, processor).Error
+}
+
+// SelectFields helper to select specific fields (avoid SELECT *)
+//
+// Example:
+//
+//	users := database.SelectFields(db, "id", "name", "email").Find(&users)
+func SelectFields(db *gorm.DB, fields ...string) *gorm.DB {
+	return db.Select(fields)
+}
+
+// Paginate helper for pagination
+//
+// Example:
+//
+//	users := database.Paginate(db, 1, 20).Find(&users) // page 1, 20 per page
+func Paginate(db *gorm.DB, page, pageSize int) *gorm.DB {
+	offset := (page - 1) * pageSize
+	return db.Offset(offset).Limit(pageSize)
 }

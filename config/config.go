@@ -11,7 +11,8 @@ type Config struct {
 	Environment string `mapstructure:"ENVIRONMENT"`
 
 	// HTTP Server
-	HTTPPort int `mapstructure:"HTTP_PORT"`
+	HTTPPort int  `mapstructure:"HTTP_PORT"`
+	Prefork  bool `mapstructure:"PREFORK"`
 
 	// gRPC Server
 	GRPCPort int `mapstructure:"GRPC_PORT"`
@@ -24,6 +25,10 @@ type Config struct {
 	DBName     string `mapstructure:"DB_NAME"`
 	DBTimezone string `mapstructure:"DB_TIMEZONE"`
 	DBSSLMode  string `mapstructure:"DB_SSL_MODE"`
+	
+	// Database Performance
+	DBPrepareStmt            bool `mapstructure:"DB_PREPARE_STMT"`              // Enable prepared statement cache
+	DBSkipDefaultTransaction bool `mapstructure:"DB_SKIP_DEFAULT_TRANSACTION"` // Disable transactions for better performance
 
 	// Redis
 	RedisHost        string `mapstructure:"REDIS_HOST"`
@@ -91,6 +96,7 @@ func setDefaults(v *viper.Viper) {
 
 	// HTTP/gRPC
 	v.SetDefault("HTTP_PORT", 3000)
+	v.SetDefault("PREFORK", false)
 	v.SetDefault("GRPC_PORT", 50051)
 
 	// Database
@@ -101,6 +107,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("DB_NAME", "go_grst_db")
 	v.SetDefault("DB_TIMEZONE", "Asia/Jakarta")
 	v.SetDefault("DB_SSL_MODE", "disable")
+	
+	// Database Performance
+	v.SetDefault("DB_PREPARE_STMT", true)  // Enable prepared statement cache for better performance
+	v.SetDefault("DB_SKIP_DEFAULT_TRANSACTION", false) // Keep transactions enabled by default for data consistency
 
 	// Redis
 	v.SetDefault("REDIS_HOST", "localhost")

@@ -15,7 +15,6 @@ type Repository interface {
 	FindAll(ctx context.Context, params ListParams) ([]entity.User, int64, error)
 	Update(ctx context.Context, user *entity.User) error
 	Delete(ctx context.Context, id string) error
-	FindPayslip(ctx context.Context, employeeID string, year, month int) (*entity.Payslip, error)
 }
 
 type ListParams struct {
@@ -102,13 +101,3 @@ func (r *repository) Delete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Where("id = ?", id).Delete(&entity.User{}).Error
 }
 
-func (r *repository) FindPayslip(ctx context.Context, employeeID string, year, month int) (*entity.Payslip, error) {
-	var payslip entity.Payslip
-	err := r.db.WithContext(ctx).
-		Where("employee_id = ? AND year = ? AND month = ?", employeeID, year, month).
-		First(&payslip).Error
-	if err != nil {
-		return nil, err
-	}
-	return &payslip, nil
-}

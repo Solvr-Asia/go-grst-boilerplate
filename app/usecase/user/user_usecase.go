@@ -12,10 +12,9 @@ import (
 )
 
 var (
-	ErrEmailExists    = errors.New("email already registered")
-	ErrNotFound       = errors.New("user not found")
-	ErrInvalidCreds   = errors.New("invalid credentials")
-	ErrPayslipNotFound = errors.New("payslip not found")
+	ErrEmailExists  = errors.New("email already registered")
+	ErrNotFound     = errors.New("user not found")
+	ErrInvalidCreds = errors.New("invalid credentials")
 )
 
 type UseCase interface {
@@ -23,7 +22,9 @@ type UseCase interface {
 	Login(ctx context.Context, email, password string) (*entity.User, error)
 	GetProfile(ctx context.Context, userID string) (*entity.User, error)
 	ListAll(ctx context.Context, input ListInput) ([]entity.User, int64, error)
-	GetPayslip(ctx context.Context, employeeID string, year, month int) (*entity.Payslip, error)
+	GetUser(ctx context.Context, userID string) (*entity.User, error)
+	UpdateUser(ctx context.Context, userID string, input UpdateInput) (*entity.User, error)
+	DeleteUser(ctx context.Context, userID string) error
 }
 
 type RegisterInput struct {
@@ -45,6 +46,12 @@ type ListInput struct {
 	Search    string
 	SortBy    string
 	SortOrder string
+}
+
+type UpdateInput struct {
+	Name   string
+	Phone  string
+	Status string
 }
 
 type useCase struct {
@@ -127,13 +134,51 @@ func (uc *useCase) ListAll(ctx context.Context, input ListInput) ([]entity.User,
 	})
 }
 
-func (uc *useCase) GetPayslip(ctx context.Context, employeeID string, year, month int) (*entity.Payslip, error) {
-	payslip, err := uc.userRepo.FindPayslip(ctx, employeeID, year, month)
+func (uc *useCase) GetUser(ctx context.Context, userID string) (*entity.User, error) {
+	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrPayslipNotFound
+			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-	return payslip, nil
+	return user, nil
+}
+
+func (uc *useCase) UpdateUser(ctx context.Context, userID string, input UpdateInput) (*entity.User, error) {
+	user, err := uc.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	if input.Name != "" {
+		user.Name = input.Name
+	}
+	if input.Phone != "" {
+		user.Phone = input.Phone
+	}
+	if input.Status != "" {
+		user.Status = entity.UserStatus(input.Status)
+	}
+
+	if err := uc.userRepo.Update(ctx, user); err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+func (uc *useCase) DeleteUser(ctx context.Context, userID string) error {
+	_, err := uc.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		}
+		return err
+	}
+
+	return uc.userRepo.Delete(ctx, userID)
 }

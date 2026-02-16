@@ -13,6 +13,7 @@ func NewFiber(cfg *Config, log *zap.Logger) *fiber.App {
 		AppName:               cfg.ServiceName,
 		DisableStartupMessage: true,
 		ErrorHandler:          NewErrorHandler(log),
+		Prefork:               cfg.Prefork,
 	})
 
 	// CORS

@@ -16,6 +16,10 @@ func NewDatabase(cfg *Config, log *zap.Logger) (*gorm.DB, error) {
 		Name:     cfg.DBName,
 		SSLMode:  cfg.DBSSLMode,
 		Timezone: cfg.DBTimezone,
+		
+		// Performance optimizations
+		PrepareStmt:            cfg.DBPrepareStmt,
+		SkipDefaultTransaction: cfg.DBSkipDefaultTransaction,
 	}, log)
 	if err != nil {
 		return nil, err

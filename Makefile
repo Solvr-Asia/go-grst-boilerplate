@@ -1,4 +1,4 @@
-.PHONY: proto build run test docker clean deps migrate lint migrate-up migrate-down migrate-rollback migrate-status migrate-create seed fresh refresh reset release
+.PHONY: proto build build-worker run run-worker test docker clean deps migrate lint migrate-up migrate-down migrate-rollback migrate-status migrate-create seed fresh refresh reset release
 
 # Application
 APP_NAME=go-grst-boilerplate
@@ -36,6 +36,18 @@ build:
 run:
 	@echo "Running $(APP_NAME)..."
 	$(GORUN) ./cmd/server
+
+# Run the worker
+run-worker:
+	@echo "Running $(APP_NAME) worker..."
+	$(GORUN) ./cmd/worker
+
+# Build the worker
+build-worker:
+	@echo "Building $(APP_NAME) worker..."
+	@mkdir -p $(BUILD_DIR)
+	$(GOBUILD) -o $(BUILD_DIR)/$(APP_NAME)-worker ./cmd/worker
+	@echo "Build completed: $(BUILD_DIR)/$(APP_NAME)-worker"
 
 # Run the application with hot reload (requires air)
 dev:
@@ -212,7 +224,9 @@ help:
 	@echo ""
 	@echo "Application:"
 	@echo "  make build          - Build the application"
+	@echo "  make build-worker   - Build the worker"
 	@echo "  make run            - Run the application"
+	@echo "  make run-worker     - Run the worker"
 	@echo "  make dev            - Run with hot reload (requires air)"
 	@echo "  make test           - Run tests"
 	@echo "  make test-coverage  - Run tests with coverage report"

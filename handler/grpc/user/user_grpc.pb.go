@@ -13,9 +13,13 @@ import (
 type UserApiServer interface {
 	Register(context.Context, *RegisterReq) (*RegisterRes, error)
 	Login(context.Context, *LoginReq) (*LoginRes, error)
-	GetProfile(context.Context, *emptypb.Empty) (*UserProfile, error)
-	ListAllUsers(context.Context, *ListUsersReq) (*ListUsersRes, error)
-	GetMyPayslip(context.Context, *GetPayslipReq) (*Payslip, error)
+	RefreshToken(context.Context, *RefreshTokenReq) (*RefreshTokenRes, error)
+	GetMe(context.Context, *emptypb.Empty) (*UserProfile, error)
+	Logout(context.Context, *emptypb.Empty) (*LogoutRes, error)
+	ListUsers(context.Context, *ListUsersReq) (*ListUsersRes, error)
+	GetUser(context.Context, *GetUserReq) (*UserProfile, error)
+	UpdateUser(context.Context, *UpdateUserReq) (*UserProfile, error)
+	DeleteUser(context.Context, *DeleteUserReq) (*DeleteUserRes, error)
 }
 
 type UnimplementedUserApiServer struct{}
@@ -28,15 +32,31 @@ func (UnimplementedUserApiServer) Login(context.Context, *LoginReq) (*LoginRes, 
 	return nil, nil
 }
 
-func (UnimplementedUserApiServer) GetProfile(context.Context, *emptypb.Empty) (*UserProfile, error) {
+func (UnimplementedUserApiServer) RefreshToken(context.Context, *RefreshTokenReq) (*RefreshTokenRes, error) {
 	return nil, nil
 }
 
-func (UnimplementedUserApiServer) ListAllUsers(context.Context, *ListUsersReq) (*ListUsersRes, error) {
+func (UnimplementedUserApiServer) GetMe(context.Context, *emptypb.Empty) (*UserProfile, error) {
 	return nil, nil
 }
 
-func (UnimplementedUserApiServer) GetMyPayslip(context.Context, *GetPayslipReq) (*Payslip, error) {
+func (UnimplementedUserApiServer) Logout(context.Context, *emptypb.Empty) (*LogoutRes, error) {
+	return nil, nil
+}
+
+func (UnimplementedUserApiServer) ListUsers(context.Context, *ListUsersReq) (*ListUsersRes, error) {
+	return nil, nil
+}
+
+func (UnimplementedUserApiServer) GetUser(context.Context, *GetUserReq) (*UserProfile, error) {
+	return nil, nil
+}
+
+func (UnimplementedUserApiServer) UpdateUser(context.Context, *UpdateUserReq) (*UserProfile, error) {
+	return nil, nil
+}
+
+func (UnimplementedUserApiServer) DeleteUser(context.Context, *DeleteUserReq) (*DeleteUserRes, error) {
 	return nil, nil
 }
 

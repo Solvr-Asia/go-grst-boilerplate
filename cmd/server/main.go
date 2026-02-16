@@ -33,6 +33,7 @@ func main() {
 		zap.String("environment", cfg.Environment),
 		zap.Int("http_port", cfg.HTTPPort),
 		zap.Int("grpc_port", cfg.GRPCPort),
+		zap.Bool("prefork", cfg.Prefork),
 	)
 
 	// Initialize OpenTelemetry

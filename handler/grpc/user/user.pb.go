@@ -26,6 +26,18 @@ type LoginRes struct {
 	User  *UserProfile `json:"user"`
 }
 
+type RefreshTokenReq struct {
+	Token string `json:"token"`
+}
+
+type RefreshTokenRes struct {
+	Token string `json:"token"`
+}
+
+type LogoutRes struct {
+	Message string `json:"message"`
+}
+
 type UserProfile struct {
 	Id        string `json:"id"`
 	Email     string `json:"email"`
@@ -55,16 +67,21 @@ type Pagination struct {
 	TotalPages int32 `json:"totalPages"`
 }
 
-type GetPayslipReq struct {
-	Year  int32 `json:"year"`
-	Month int32 `json:"month"`
+type GetUserReq struct {
+	Id string `json:"id"`
 }
 
-type Payslip struct {
-	Id          string  `json:"id"`
-	EmployeeId  string  `json:"employeeId"`
-	Year        int32   `json:"year"`
-	Month       int32   `json:"month"`
-	GrossSalary float64 `json:"grossSalary"`
-	NetSalary   float64 `json:"netSalary"`
+type UpdateUserReq struct {
+	Id     string `json:"id"`
+	Name   string `json:"name"`
+	Phone  string `json:"phone"`
+	Status string `json:"status"`
+}
+
+type DeleteUserReq struct {
+	Id string `json:"id"`
+}
+
+type DeleteUserRes struct {
+	Message string `json:"message"`
 }

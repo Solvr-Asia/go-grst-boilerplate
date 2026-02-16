@@ -26,7 +26,6 @@ func New(db *gorm.DB) *Seeder {
 func (s *Seeder) SeedAll(ctx context.Context) error {
 	seeders := []func(context.Context) error{
 		s.SeedUsers,
-		s.SeedPayslips,
 	}
 
 	for _, seeder := range seeders {
@@ -129,80 +128,4 @@ func (s *Seeder) SeedUsers(ctx context.Context) error {
 
 	fmt.Println("Users seeded successfully!")
 	return nil
-}
-
-// SeedPayslips seeds the payslips table
-func (s *Seeder) SeedPayslips(ctx context.Context) error {
-	fmt.Println("Seeding payslips...")
-
-	// Get employees
-	var employees []entity.User
-	if err := s.db.WithContext(ctx).Where("? = ANY(roles)", "employee").Find(&employees).Error; err != nil {
-		return fmt.Errorf("failed to fetch employees: %w", err)
-	}
-
-	if len(employees) == 0 {
-		fmt.Println("  No employees found, skipping payslips...")
-		return nil
-	}
-
-	currentYear := time.Now().Year()
-	currentMonth := int(time.Now().Month())
-
-	for _, emp := range employees {
-		// Create payslips for the last 3 months
-		for i := 0; i < 3; i++ {
-			month := currentMonth - i
-			year := currentYear
-			if month <= 0 {
-				month += 12
-				year--
-			}
-
-			// Check if payslip already exists
-			var existingPayslip entity.Payslip
-			result := s.db.WithContext(ctx).
-				Where("employee_id = ? AND year = ? AND month = ?", emp.ID, year, month).
-				First(&existingPayslip)
-			if result.Error == nil {
-				fmt.Printf("  Payslip for %s (%d-%02d) already exists, skipping...\n", emp.Name, year, month)
-				continue
-			}
-
-			basicSalary := 5000000.0 + float64(i*500000) // Vary salary a bit
-			allowances := 1500000.0
-			deductions := 500000.0
-			grossSalary := basicSalary + allowances
-			netSalary := grossSalary - deductions
-
-			payslip := entity.Payslip{
-				ID:          uuid.New().String(),
-				EmployeeID:  emp.ID,
-				Year:        year,
-				Month:       month,
-				BasicSalary: basicSalary,
-				Allowances:  allowances,
-				Deductions:  deductions,
-				GrossSalary: grossSalary,
-				NetSalary:   netSalary,
-				Status:      "paid",
-				PaidAt:      timePtr(time.Date(year, time.Month(month), 25, 0, 0, 0, 0, time.Local)),
-				CreatedAt:   time.Now(),
-				UpdatedAt:   time.Now(),
-			}
-
-			if err := s.db.WithContext(ctx).Create(&payslip).Error; err != nil {
-				return fmt.Errorf("failed to seed payslip for %s: %w", emp.Name, err)
-			}
-
-			fmt.Printf("  Created payslip for %s (%d-%02d)\n", emp.Name, year, month)
-		}
-	}
-
-	fmt.Println("Payslips seeded successfully!")
-	return nil
-}
-
-func timePtr(t time.Time) *time.Time {
-	return &t
 }

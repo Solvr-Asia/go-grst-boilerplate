@@ -47,5 +47,8 @@ tmp/
 dist/
 build/
 
-.claude
+.claude/
 openspec
+.qoder/
+.kiro/
+.cursor/

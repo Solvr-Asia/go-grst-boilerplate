@@ -11,14 +11,26 @@ service UserApi {
     // Public endpoint - no auth required
     rpc Login(LoginReq) returns (LoginRes);
 
+    // Protected endpoint - requires valid token
+    rpc RefreshToken(RefreshTokenReq) returns (RefreshTokenRes);
+
     // Protected endpoint - requires authentication
-    rpc GetProfile(google.protobuf.Empty) returns (UserProfile);
+    rpc GetMe(google.protobuf.Empty) returns (UserProfile);
 
-    // Role-based access - admin only
-    rpc ListAllUsers(ListUsersReq) returns (ListUsersRes);
+    // Protected endpoint - invalidates session
+    rpc Logout(google.protobuf.Empty) returns (LogoutRes);
 
-    // Employee-only endpoint
-    rpc GetMyPayslip(GetPayslipReq) returns (Payslip);
+    // Admin endpoint - list all users
+    rpc ListUsers(ListUsersReq) returns (ListUsersRes);
+
+    // Admin endpoint - get user by ID
+    rpc GetUser(GetUserReq) returns (UserProfile);
+
+    // Admin endpoint - update user by ID
+    rpc UpdateUser(UpdateUserReq) returns (UserProfile);
+
+    // Admin endpoint - soft-delete user
+    rpc DeleteUser(DeleteUserReq) returns (DeleteUserRes);
 }
 
 message RegisterReq {
@@ -42,6 +54,18 @@ message LoginReq {
 message LoginRes {
     string token = 1 [json_name = "token"];
     UserProfile user = 2 [json_name = "user"];
+}
+
+message RefreshTokenReq {
+    string token = 1 [json_name = "token"];
+}
+
+message RefreshTokenRes {
+    string token = 1 [json_name = "token"];
+}
+
+message LogoutRes {
+    string message = 1 [json_name = "message"];
 }
 
 message UserProfile {
@@ -73,16 +97,21 @@ message Pagination {
     int32 total_pages = 4 [json_name = "totalPages"];
 }
 
-message GetPayslipReq {
-    int32 year = 1 [json_name = "year"];
-    int32 month = 2 [json_name = "month"];
+message GetUserReq {
+    string id = 1 [json_name = "id"];
 }
 
-message Payslip {
+message UpdateUserReq {
     string id = 1 [json_name = "id"];
-    string employee_id = 2 [json_name = "employeeId"];
-    int32 year = 3 [json_name = "year"];
-    int32 month = 4 [json_name = "month"];
-    double gross_salary = 5 [json_name = "grossSalary"];
-    double net_salary = 6 [json_name = "netSalary"];
+    string name = 2 [json_name = "name"];
+    string phone = 3 [json_name = "phone"];
+    string status = 4 [json_name = "status"];
+}
+
+message DeleteUserReq {
+    string id = 1 [json_name = "id"];
+}
+
+message DeleteUserRes {
+    string message = 1 [json_name = "message"];
 }

@@ -22,34 +22,46 @@ func NewUserRoutes(handler pb.UserApiServer) *UserRoutes {
 }
 
 func (r *UserRoutes) RegisterRoutes(app *fiber.App, validator middleware.TokenValidator) {
-	api := app.Group("/api/v1")
+	v1 := app.Group("/api/v1")
 
-	// Public routes
-	auth := api.Group("/auth")
+	// --- Auth routes ---
+	auth := v1.Group("/auth")
 	auth.Post("/register", r.Register)
 	auth.Post("/login", r.Login)
-
-	// Protected routes
-	user := api.Group("/user")
-	user.Get("/profile",
-		middleware.AuthMiddleware(validator, pb.RouteAuthConfig["GET /api/v1/user/profile"]),
-		r.GetProfile,
+	auth.Post("/refresh",
+		middleware.AuthMiddleware(validator, pb.RouteAuthConfig["POST /api/v1/auth/refresh"]),
+		r.RefreshToken,
+	)
+	auth.Get("/me",
+		middleware.AuthMiddleware(validator, pb.RouteAuthConfig["GET /api/v1/auth/me"]),
+		r.GetMe,
+	)
+	auth.Post("/logout",
+		middleware.AuthMiddleware(validator, pb.RouteAuthConfig["POST /api/v1/auth/logout"]),
+		r.Logout,
 	)
 
-	// Admin routes
-	admin := api.Group("/admin")
-	admin.Get("/users",
-		middleware.AuthMiddleware(validator, pb.RouteAuthConfig["GET /api/v1/admin/users"]),
-		r.ListAllUsers,
+	// --- Users resource routes (admin only) ---
+	users := v1.Group("/users")
+	users.Get("/",
+		middleware.AuthMiddleware(validator, pb.RouteAuthConfig["GET /api/v1/users"]),
+		r.ListUsers,
 	)
-
-	// Employee routes
-	employee := api.Group("/employee")
-	employee.Get("/payslip",
-		middleware.AuthMiddleware(validator, pb.RouteAuthConfig["GET /api/v1/employee/payslip"]),
-		r.GetMyPayslip,
+	users.Get("/:id",
+		middleware.AuthMiddleware(validator, pb.RouteAuthConfig["GET /api/v1/users/:id"]),
+		r.GetUser,
+	)
+	users.Put("/:id",
+		middleware.AuthMiddleware(validator, pb.RouteAuthConfig["PUT /api/v1/users/:id"]),
+		r.UpdateUser,
+	)
+	users.Delete("/:id",
+		middleware.AuthMiddleware(validator, pb.RouteAuthConfig["DELETE /api/v1/users/:id"]),
+		r.DeleteUser,
 	)
 }
+
+// --- Auth Handlers ---
 
 func (r *UserRoutes) Register(c *fiber.Ctx) error {
 	var req pb.RegisterReq
@@ -81,14 +93,14 @@ func (r *UserRoutes) Login(c *fiber.Ctx) error {
 	return response.Success(c, resp)
 }
 
-func (r *UserRoutes) GetProfile(c *fiber.Ctx) error {
+func (r *UserRoutes) RefreshToken(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
 	if authCtx, ok := middleware.GetAuthContext(c); ok {
 		ctx = context.WithValue(ctx, "auth", authCtx)
 	}
 
-	resp, err := r.handler.GetProfile(ctx, &emptypb.Empty{})
+	resp, err := r.handler.RefreshToken(ctx, &pb.RefreshTokenReq{})
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -96,7 +108,39 @@ func (r *UserRoutes) GetProfile(c *fiber.Ctx) error {
 	return response.Success(c, resp)
 }
 
-func (r *UserRoutes) ListAllUsers(c *fiber.Ctx) error {
+func (r *UserRoutes) GetMe(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	if authCtx, ok := middleware.GetAuthContext(c); ok {
+		ctx = context.WithValue(ctx, "auth", authCtx)
+	}
+
+	resp, err := r.handler.GetMe(ctx, &emptypb.Empty{})
+	if err != nil {
+		return handleError(c, err)
+	}
+
+	return response.Success(c, resp)
+}
+
+func (r *UserRoutes) Logout(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	if authCtx, ok := middleware.GetAuthContext(c); ok {
+		ctx = context.WithValue(ctx, "auth", authCtx)
+	}
+
+	resp, err := r.handler.Logout(ctx, &emptypb.Empty{})
+	if err != nil {
+		return handleError(c, err)
+	}
+
+	return response.Success(c, resp)
+}
+
+// --- Users Resource Handlers ---
+
+func (r *UserRoutes) ListUsers(c *fiber.Ctx) error {
 	req := &pb.ListUsersReq{
 		Page:      int32(c.QueryInt("page", 1)),  // #nosec G115 -- pagination page is bounded
 		Size:      int32(c.QueryInt("size", 10)), // #nosec G115 -- pagination size is bounded
@@ -110,7 +154,7 @@ func (r *UserRoutes) ListAllUsers(c *fiber.Ctx) error {
 		ctx = context.WithValue(ctx, "auth", authCtx)
 	}
 
-	resp, err := r.handler.ListAllUsers(ctx, req)
+	resp, err := r.handler.ListUsers(ctx, req)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -118,10 +162,10 @@ func (r *UserRoutes) ListAllUsers(c *fiber.Ctx) error {
 	return response.SuccessWithMeta(c, resp.Users, resp.Pagination)
 }
 
-func (r *UserRoutes) GetMyPayslip(c *fiber.Ctx) error {
-	req := &pb.GetPayslipReq{
-		Year:  int32(c.QueryInt("year")),  // #nosec G115 -- year is bounded (reasonable calendar year)
-		Month: int32(c.QueryInt("month")), // #nosec G115 -- month is 1-12
+func (r *UserRoutes) GetUser(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if id == "" {
+		return response.BadRequest(c, 400, "user id is required")
 	}
 
 	ctx := c.UserContext()
@@ -129,13 +173,59 @@ func (r *UserRoutes) GetMyPayslip(c *fiber.Ctx) error {
 		ctx = context.WithValue(ctx, "auth", authCtx)
 	}
 
-	resp, err := r.handler.GetMyPayslip(ctx, req)
+	resp, err := r.handler.GetUser(ctx, &pb.GetUserReq{Id: id})
 	if err != nil {
 		return handleError(c, err)
 	}
 
 	return response.Success(c, resp)
 }
+
+func (r *UserRoutes) UpdateUser(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if id == "" {
+		return response.BadRequest(c, 400, "user id is required")
+	}
+
+	var req pb.UpdateUserReq
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, 400, "invalid request body")
+	}
+	req.Id = id
+
+	ctx := c.UserContext()
+	if authCtx, ok := middleware.GetAuthContext(c); ok {
+		ctx = context.WithValue(ctx, "auth", authCtx)
+	}
+
+	resp, err := r.handler.UpdateUser(ctx, &req)
+	if err != nil {
+		return handleError(c, err)
+	}
+
+	return response.Success(c, resp)
+}
+
+func (r *UserRoutes) DeleteUser(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if id == "" {
+		return response.BadRequest(c, 400, "user id is required")
+	}
+
+	ctx := c.UserContext()
+	if authCtx, ok := middleware.GetAuthContext(c); ok {
+		ctx = context.WithValue(ctx, "auth", authCtx)
+	}
+
+	resp, err := r.handler.DeleteUser(ctx, &pb.DeleteUserReq{Id: id})
+	if err != nil {
+		return handleError(c, err)
+	}
+
+	return response.Success(c, resp)
+}
+
+// --- Error Helper ---
 
 func handleError(c *fiber.Ctx, err error) error {
 	if appErr, ok := err.(*errors.AppError); ok {

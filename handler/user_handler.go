@@ -7,8 +7,8 @@ import (
 	"go-grst-boilerplate/app/usecase/user"
 	pb "go-grst-boilerplate/handler/grpc/user"
 	"go-grst-boilerplate/pkg/errors"
-	"go-grst-boilerplate/pkg/jwt"
 	"go-grst-boilerplate/pkg/middleware"
+	"go-grst-boilerplate/pkg/token"
 
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -16,16 +16,17 @@ import (
 type userHandler struct {
 	pb.UnimplementedUserApiServer
 	userUC       user.UseCase
-	tokenService *jwt.TokenService
+	tokenService *token.TokenService
 }
 
-func NewUserHandler(userUC user.UseCase, tokenService *jwt.TokenService) pb.UserApiServer {
+func NewUserHandler(userUC user.UseCase, tokenService *token.TokenService) pb.UserApiServer {
 	return &userHandler{
 		userUC:       userUC,
 		tokenService: tokenService,
 	}
 }
 
+// Register creates a new user account.
 func (h *userHandler) Register(ctx context.Context, req *pb.RegisterReq) (*pb.RegisterRes, error) {
 	if err := pb.ValidateRequest(req); err != nil {
 		return nil, err
@@ -51,6 +52,7 @@ func (h *userHandler) Register(ctx context.Context, req *pb.RegisterReq) (*pb.Re
 	}, nil
 }
 
+// Login authenticates a user and returns a PASETO token.
 func (h *userHandler) Login(ctx context.Context, req *pb.LoginReq) (*pb.LoginRes, error) {
 	if err := pb.ValidateRequest(req); err != nil {
 		return nil, err
@@ -64,19 +66,19 @@ func (h *userHandler) Login(ctx context.Context, req *pb.LoginReq) (*pb.LoginRes
 		return nil, errors.Internal(50002, "failed to login")
 	}
 
-	// Generate JWT token
-	token, err := h.tokenService.GenerateToken(
+	// Generate PASETO token
+	accessToken, err := h.tokenService.GenerateToken(
 		userEntity.ID,
 		userEntity.Email,
-		[]string{"employee"}, // Default role
-		"",                   // Company code
+		userEntity.Roles,
+		userEntity.CompanyCode,
 	)
 	if err != nil {
 		return nil, errors.Internal(50003, "failed to generate token")
 	}
 
 	return &pb.LoginRes{
-		Token: token,
+		Token: accessToken,
 		User: &pb.UserProfile{
 			Id:        userEntity.ID,
 			Email:     userEntity.Email,
@@ -88,7 +90,31 @@ func (h *userHandler) Login(ctx context.Context, req *pb.LoginReq) (*pb.LoginRes
 	}, nil
 }
 
-func (h *userHandler) GetProfile(ctx context.Context, req *emptypb.Empty) (*pb.UserProfile, error) {
+// RefreshToken re-issues a new PASETO token from a valid existing token.
+func (h *userHandler) RefreshToken(ctx context.Context, req *pb.RefreshTokenReq) (*pb.RefreshTokenRes, error) {
+	authCtx := getAuthFromContext(ctx)
+	if authCtx == nil {
+		return nil, errors.Unauthorized("authentication required")
+	}
+
+	// Re-issue a new token with the same claims
+	newToken, err := h.tokenService.GenerateToken(
+		authCtx.UserID,
+		authCtx.Email,
+		authCtx.Roles,
+		authCtx.CompanyCode,
+	)
+	if err != nil {
+		return nil, errors.Internal(50010, "failed to refresh token")
+	}
+
+	return &pb.RefreshTokenRes{
+		Token: newToken,
+	}, nil
+}
+
+// GetMe returns the profile of the currently authenticated user.
+func (h *userHandler) GetMe(ctx context.Context, req *emptypb.Empty) (*pb.UserProfile, error) {
 	authCtx := getAuthFromContext(ctx)
 	if authCtx == nil {
 		return nil, errors.Unauthorized("authentication required")
@@ -112,7 +138,22 @@ func (h *userHandler) GetProfile(ctx context.Context, req *emptypb.Empty) (*pb.U
 	}, nil
 }
 
-func (h *userHandler) ListAllUsers(ctx context.Context, req *pb.ListUsersReq) (*pb.ListUsersRes, error) {
+// Logout invalidates the current session (stateless — returns success).
+func (h *userHandler) Logout(ctx context.Context, req *emptypb.Empty) (*pb.LogoutRes, error) {
+	authCtx := getAuthFromContext(ctx)
+	if authCtx == nil {
+		return nil, errors.Unauthorized("authentication required")
+	}
+
+	// Stateless logout — token is not blacklisted.
+	// Client should discard the token on their side.
+	return &pb.LogoutRes{
+		Message: "successfully logged out",
+	}, nil
+}
+
+// ListUsers returns a paginated list of all users (admin only).
+func (h *userHandler) ListUsers(ctx context.Context, req *pb.ListUsersReq) (*pb.ListUsersRes, error) {
 	if err := pb.ValidateRequest(req); err != nil {
 		return nil, err
 	}
@@ -153,31 +194,66 @@ func (h *userHandler) ListAllUsers(ctx context.Context, req *pb.ListUsersReq) (*
 	}, nil
 }
 
-func (h *userHandler) GetMyPayslip(ctx context.Context, req *pb.GetPayslipReq) (*pb.Payslip, error) {
+// GetUser returns a single user by ID (admin only).
+func (h *userHandler) GetUser(ctx context.Context, req *pb.GetUserReq) (*pb.UserProfile, error) {
+	userEntity, err := h.userUC.GetUser(ctx, req.Id)
+	if err != nil {
+		if err == user.ErrNotFound {
+			return nil, errors.NotFound("user not found")
+		}
+		return nil, errors.Internal(50006, "failed to get user")
+	}
+
+	return &pb.UserProfile{
+		Id:        userEntity.ID,
+		Email:     userEntity.Email,
+		Name:      userEntity.Name,
+		Phone:     userEntity.Phone,
+		Status:    string(userEntity.Status),
+		CreatedAt: userEntity.CreatedAt.Format(time.RFC3339),
+	}, nil
+}
+
+// UpdateUser updates a user by ID (admin only).
+func (h *userHandler) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*pb.UserProfile, error) {
 	if err := pb.ValidateRequest(req); err != nil {
 		return nil, err
 	}
 
-	authCtx := getAuthFromContext(ctx)
-	if authCtx == nil {
-		return nil, errors.Unauthorized("authentication required")
-	}
-
-	payslip, err := h.userUC.GetPayslip(ctx, authCtx.UserID, int(req.Year), int(req.Month))
+	userEntity, err := h.userUC.UpdateUser(ctx, req.Id, user.UpdateInput{
+		Name:   req.Name,
+		Phone:  req.Phone,
+		Status: req.Status,
+	})
 	if err != nil {
-		if err == user.ErrPayslipNotFound {
-			return nil, errors.NotFound("payslip not found")
+		if err == user.ErrNotFound {
+			return nil, errors.NotFound("user not found")
 		}
-		return nil, errors.Internal(50006, "failed to get payslip")
+		return nil, errors.Internal(50007, "failed to update user")
 	}
 
-	return &pb.Payslip{
-		Id:          payslip.ID,
-		EmployeeId:  payslip.EmployeeID,
-		Year:        int32(payslip.Year),  // #nosec G115 -- year is bounded (reasonable calendar year)
-		Month:       int32(payslip.Month), // #nosec G115 -- month is 1-12
-		GrossSalary: payslip.GrossSalary,
-		NetSalary:   payslip.NetSalary,
+	return &pb.UserProfile{
+		Id:        userEntity.ID,
+		Email:     userEntity.Email,
+		Name:      userEntity.Name,
+		Phone:     userEntity.Phone,
+		Status:    string(userEntity.Status),
+		CreatedAt: userEntity.CreatedAt.Format(time.RFC3339),
+	}, nil
+}
+
+// DeleteUser soft-deletes a user by ID (admin only).
+func (h *userHandler) DeleteUser(ctx context.Context, req *pb.DeleteUserReq) (*pb.DeleteUserRes, error) {
+	err := h.userUC.DeleteUser(ctx, req.Id)
+	if err != nil {
+		if err == user.ErrNotFound {
+			return nil, errors.NotFound("user not found")
+		}
+		return nil, errors.Internal(50008, "failed to delete user")
+	}
+
+	return &pb.DeleteUserRes{
+		Message: "user deleted successfully",
 	}, nil
 }
 
