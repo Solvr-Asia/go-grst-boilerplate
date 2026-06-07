@@ -11,7 +11,7 @@ A production-ready Go monolithic application boilerplate using **Go Fiber** for 
 - **Message Queue**: RabbitMQ for async processing
 - **Logging**: Zap structured logging with trace context
 - **Tracing**: OpenTelemetry with Jaeger exporter
-- **Configuration**: Viper with .env file support
+- **Configuration**: Viper with `.env`, process env, and optional Infisical secret loading
 - **Validation**: go-playground/validator with custom validators
 - **Authentication**: PASETO v4 local tokens with role-based access control (RBAC)
 - **Testing**: Testify with mocking support
@@ -34,7 +34,7 @@ A production-ready Go monolithic application boilerplate using **Go Fiber** for 
 | Message Queue | RabbitMQ ([amqp091-go](https://github.com/rabbitmq/amqp091-go)) |
 | Logger | [Zap](https://github.com/uber-go/zap) |
 | Tracing | [OpenTelemetry](https://opentelemetry.io/) |
-| Config | [Viper](https://github.com/spf13/viper) |
+| Config | [Viper](https://github.com/spf13/viper) + [Infisical](https://infisical.com/) |
 | Validation | [go-playground/validator](https://github.com/go-playground/validator) |
 | Testing | [Testify](https://github.com/stretchr/testify) |
 | Auth | [PASETO](https://paseto.io/) |
@@ -54,6 +54,7 @@ go-grst-boilerplate/
 │       └── main.go
 ├── config/
 │   ├── config.go               # Viper configuration & Config struct
+│   ├── infisical.go            # Optional Infisical secret loading
 │   ├── bootstrap.go            # Dependency wiring (repos, usecases, routes)
 │   ├── fiber.go                # Fiber app, CORS, middleware, error handler
 │   ├── database.go             # Database init + auto-migrate
@@ -184,8 +185,8 @@ Create a `.env` file in the project root:
 
 ```env
 # Application
-APP_NAME=go-grst-boilerplate
-APP_ENV=development
+SERVICE_NAME=go-grst-boilerplate
+ENVIRONMENT=development
 HTTP_PORT=3000
 GRPC_PORT=50051
 
@@ -194,8 +195,9 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=postgres
-DB_NAME=grst_db
+DB_NAME=go_grst_db
 DB_TIMEZONE=Asia/Jakarta
+DB_SSL_MODE=disable
 
 # Redis
 REDIS_HOST=localhost
@@ -204,21 +206,63 @@ REDIS_PASSWORD=
 REDIS_DB=0
 
 # RabbitMQ
-RABBITMQ_URL=amqp://guest:guest@localhost:5672/
+RABBITMQ_HOST=localhost
+RABBITMQ_PORT=5672
+RABBITMQ_USER=guest
+RABBITMQ_PASSWORD=guest
+RABBITMQ_VHOST=/
 
 # PASETO token secret (legacy variable name)
 JWT_SECRET=your-super-secret-key
 JWT_EXPIRATION=24
 
+# Infisical
+INFISICAL_ENABLED=false
+INFISICAL_SITE_URL=https://app.infisical.com
+INFISICAL_CLIENT_ID=
+INFISICAL_CLIENT_SECRET=
+INFISICAL_PROJECT_ID=
+INFISICAL_ENVIRONMENT=dev
+INFISICAL_SECRET_PATH=/
+
 # Telemetry
 OTEL_ENABLED=true
-OTEL_EXPORTER=jaeger
 OTEL_ENDPOINT=localhost:4317
+OTEL_EXPORTER_TYPE=stdout
 
 # Logging
 LOG_LEVEL=debug
 LOG_FORMAT=json
 ```
+
+### Infisical
+
+The app supports Infisical in two ways:
+
+1. Use the Infisical CLI to inject secrets into the process:
+
+```bash
+infisical init
+make infisical-run INFISICAL_ENV=dev INFISICAL_PATH=/
+make infisical-run-worker INFISICAL_ENV=dev INFISICAL_PATH=/
+```
+
+2. Let the Go app fetch secrets at startup with the official Infisical Go SDK:
+
+```env
+INFISICAL_ENABLED=true
+INFISICAL_CLIENT_ID=<machine-identity-client-id>
+INFISICAL_CLIENT_SECRET=<machine-identity-client-secret>
+INFISICAL_PROJECT_ID=<project-id>
+INFISICAL_ENVIRONMENT=dev
+INFISICAL_SECRET_PATH=/
+INFISICAL_INCLUDE_IMPORTS=true
+INFISICAL_RECURSIVE=false
+INFISICAL_EXPAND_SECRET_REFERENCES=true
+INFISICAL_OVERRIDE=false
+```
+
+When `INFISICAL_ENABLED=true`, secrets are fetched before the final config decode. Existing process environment variables keep precedence by default; set `INFISICAL_OVERRIDE=true` if Infisical should overwrite them.
 
 ## API Endpoints
 

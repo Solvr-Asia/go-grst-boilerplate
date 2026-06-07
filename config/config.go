@@ -1,6 +1,8 @@
 package config
 
 import (
+	"context"
+	"fmt"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -25,9 +27,9 @@ type Config struct {
 	DBName     string `mapstructure:"DB_NAME"`
 	DBTimezone string `mapstructure:"DB_TIMEZONE"`
 	DBSSLMode  string `mapstructure:"DB_SSL_MODE"`
-	
+
 	// Database Performance
-	DBPrepareStmt            bool `mapstructure:"DB_PREPARE_STMT"`              // Enable prepared statement cache
+	DBPrepareStmt            bool `mapstructure:"DB_PREPARE_STMT"`             // Enable prepared statement cache
 	DBSkipDefaultTransaction bool `mapstructure:"DB_SKIP_DEFAULT_TRANSACTION"` // Disable transactions for better performance
 
 	// Redis
@@ -81,6 +83,10 @@ func New() (*Config, error) {
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
+	if err := loadRemoteEnvironment(context.Background(), v); err != nil {
+		return nil, err
+	}
+
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
@@ -107,9 +113,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("DB_NAME", "go_grst_db")
 	v.SetDefault("DB_TIMEZONE", "Asia/Jakarta")
 	v.SetDefault("DB_SSL_MODE", "disable")
-	
+
 	// Database Performance
-	v.SetDefault("DB_PREPARE_STMT", true)  // Enable prepared statement cache for better performance
+	v.SetDefault("DB_PREPARE_STMT", true)              // Enable prepared statement cache for better performance
 	v.SetDefault("DB_SKIP_DEFAULT_TRANSACTION", false) // Keep transactions enabled by default for data consistency
 
 	// Redis
@@ -144,6 +150,16 @@ func setDefaults(v *viper.Viper) {
 	// Logger
 	v.SetDefault("LOG_LEVEL", "info")
 	v.SetDefault("LOG_FORMAT", "json")
+
+	// Infisical
+	v.SetDefault("INFISICAL_ENABLED", false)
+	v.SetDefault("INFISICAL_SITE_URL", "https://app.infisical.com")
+	v.SetDefault("INFISICAL_ENVIRONMENT", "dev")
+	v.SetDefault("INFISICAL_SECRET_PATH", "/")
+	v.SetDefault("INFISICAL_INCLUDE_IMPORTS", true)
+	v.SetDefault("INFISICAL_RECURSIVE", false)
+	v.SetDefault("INFISICAL_EXPAND_SECRET_REFERENCES", true)
+	v.SetDefault("INFISICAL_OVERRIDE", false)
 }
 
 // MustNew returns config or panics
@@ -153,4 +169,33 @@ func MustNew() *Config {
 		panic(err)
 	}
 	return cfg
+}
+
+func loadRemoteEnvironment(ctx context.Context, v *viper.Viper) error {
+	infisicalCfg := InfisicalConfig{
+		Enabled:                v.GetBool("INFISICAL_ENABLED"),
+		SiteURL:                v.GetString("INFISICAL_SITE_URL"),
+		ClientID:               v.GetString("INFISICAL_CLIENT_ID"),
+		ClientSecret:           v.GetString("INFISICAL_CLIENT_SECRET"),
+		ProjectID:              v.GetString("INFISICAL_PROJECT_ID"),
+		ProjectSlug:            v.GetString("INFISICAL_PROJECT_SLUG"),
+		Environment:            v.GetString("INFISICAL_ENVIRONMENT"),
+		SecretPath:             v.GetString("INFISICAL_SECRET_PATH"),
+		IncludeImports:         v.GetBool("INFISICAL_INCLUDE_IMPORTS"),
+		Recursive:              v.GetBool("INFISICAL_RECURSIVE"),
+		ExpandSecretReferences: v.GetBool("INFISICAL_EXPAND_SECRET_REFERENCES"),
+		Override:               v.GetBool("INFISICAL_OVERRIDE"),
+		OrganizationSlug:       v.GetString("INFISICAL_ORGANIZATION_SLUG"),
+	}
+	if !infisicalCfg.Enabled {
+		return nil
+	}
+
+	secrets, err := loadInfisicalSecrets(ctx, infisicalCfg)
+	if err != nil {
+		return fmt.Errorf("load infisical secrets: %w", err)
+	}
+
+	applyInfisicalSecrets(secrets, infisicalCfg.Override)
+	return nil
 }

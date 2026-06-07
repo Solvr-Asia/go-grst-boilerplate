@@ -1,9 +1,11 @@
-.PHONY: proto build build-worker run run-worker test docker clean deps migrate lint migrate-up migrate-down migrate-rollback migrate-status migrate-create seed fresh refresh reset release
+.PHONY: proto build build-worker run run-worker infisical-run infisical-run-worker test docker clean deps migrate lint migrate-up migrate-down migrate-rollback migrate-status migrate-create seed fresh refresh reset release
 
 # Application
 APP_NAME=go-grst-boilerplate
 BUILD_DIR=bin
 MIGRATE_CMD=cmd/migrate/main.go
+INFISICAL_ENV ?= dev
+INFISICAL_PATH ?= /
 
 # Go parameters
 GOCMD=go
@@ -40,6 +42,16 @@ run:
 run-worker:
 	@echo "Running $(APP_NAME) worker..."
 	$(GORUN) ./cmd/worker
+
+# Run the application with Infisical CLI-injected secrets
+infisical-run:
+	@echo "Running $(APP_NAME) with Infisical secrets..."
+	infisical run --env=$(INFISICAL_ENV) --path=$(INFISICAL_PATH) -- $(GORUN) ./cmd/server
+
+# Run the worker with Infisical CLI-injected secrets
+infisical-run-worker:
+	@echo "Running $(APP_NAME) worker with Infisical secrets..."
+	infisical run --env=$(INFISICAL_ENV) --path=$(INFISICAL_PATH) -- $(GORUN) ./cmd/worker
 
 # Build the worker
 build-worker:
@@ -226,6 +238,8 @@ help:
 	@echo "  make build-worker   - Build the worker"
 	@echo "  make run            - Run the application"
 	@echo "  make run-worker     - Run the worker"
+	@echo "  make infisical-run  - Run the application with Infisical CLI secrets"
+	@echo "  make infisical-run-worker - Run the worker with Infisical CLI secrets"
 	@echo "  make dev            - Run with hot reload (requires air)"
 	@echo "  make test           - Run tests"
 	@echo "  make test-coverage  - Run tests with coverage report"
