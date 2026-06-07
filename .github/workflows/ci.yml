@@ -7,7 +7,7 @@ on:
     branches: [main, master, develop]
 
 env:
-  GO_VERSION: "1.21"
+  GO_VERSION: "1.25.11"
 
 jobs:
   build:
@@ -26,10 +26,17 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
+      - name: Run tests
+        run: go test ./...
+
+      - name: Run vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
       - name: Build application
         run: |
           go build -ldflags="-s -w" -o bin/server ./cmd/server
           go build -ldflags="-s -w" -o bin/migrate ./cmd/migrate
+          go build -ldflags="-s -w" -o bin/worker ./cmd/worker
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

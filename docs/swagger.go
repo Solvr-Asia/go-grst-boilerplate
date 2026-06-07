@@ -1,12 +1,19 @@
 package docs
 
 import (
+	"encoding/json"
+
 	"github.com/gofiber/fiber/v2"
 	scalar "github.com/yokeTH/gofiber-scalar"
 )
 
 // SetupSwagger configures Swagger documentation with Scalar UI
 func SetupSwagger(app *fiber.App) {
+	specBytes, err := json.Marshal(GetOpenAPISpec())
+	if err != nil {
+		panic(err)
+	}
+
 	// Serve OpenAPI spec
 	app.Get("/docs/openapi.json", func(c *fiber.Ctx) error {
 		return c.JSON(GetOpenAPISpec())
@@ -14,8 +21,9 @@ func SetupSwagger(app *fiber.App) {
 
 	// Serve Scalar UI
 	app.Get("/docs/*", scalar.New(scalar.Config{
-		Title:      "Go-GRST-Boilerplate API",
-		RawSpecUrl: "/docs/openapi.json",
+		Title:             "Go-GRST-Boilerplate API",
+		RawSpecUrl:        "openapi.json",
+		FileContentString: string(specBytes),
 	}))
 }
 

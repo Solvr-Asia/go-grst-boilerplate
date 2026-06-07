@@ -17,12 +17,11 @@ proto:
 	@echo "Generating proto files..."
 	protoc \
 		--proto_path=contract \
-		--proto_path=$(shell go env GOPATH)/src \
-		--go_out=handler/grpc \
+		--go_out=handler/grpc/user \
 		--go_opt=paths=source_relative \
-		--go-grpc_out=handler/grpc \
+		--go-grpc_out=handler/grpc/user \
 		--go-grpc_opt=paths=source_relative \
-		contract/*.proto
+		contract/user.proto
 	@echo "Proto generation completed"
 
 # Build the application

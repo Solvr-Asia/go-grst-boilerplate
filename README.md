@@ -13,7 +13,7 @@ A production-ready Go monolithic application boilerplate using **Go Fiber** for 
 - **Tracing**: OpenTelemetry with Jaeger exporter
 - **Configuration**: Viper with .env file support
 - **Validation**: go-playground/validator with custom validators
-- **Authentication**: JWT with role-based access control (RBAC)
+- **Authentication**: PASETO v4 local tokens with role-based access control (RBAC)
 - **Testing**: Testify with mocking support
 - **Migrations**: golang-migrate with SQL files support
 - **Resilience**: Circuit breaker, retry, timeout with failsafe-go
@@ -37,7 +37,7 @@ A production-ready Go monolithic application boilerplate using **Go Fiber** for 
 | Config | [Viper](https://github.com/spf13/viper) |
 | Validation | [go-playground/validator](https://github.com/go-playground/validator) |
 | Testing | [Testify](https://github.com/stretchr/testify) |
-| Auth | [golang-jwt/jwt](https://github.com/golang-jwt/jwt) |
+| Auth | [PASETO](https://paseto.io/) |
 | Migrations | [golang-migrate](https://github.com/golang-migrate/migrate) |
 | Resilience | [failsafe-go](https://failsafe-go.dev/) |
 | Metrics | [Prometheus](https://prometheus.io/) |
@@ -71,8 +71,7 @@ go-grst-boilerplate/
 │   └── seeds/                  # Database seeders
 │       └── seeder.go
 ├── entity/                     # Domain entities
-│   ├── user.go
-│   └── payslip.go
+│   └── user.go
 ├── repository/                 # Data access layer
 │   └── user_repository/
 │       └── repository.go
@@ -89,15 +88,15 @@ go-grst-boilerplate/
 │   │       └── user_protokit.go
 │   └── http/
 │       └── user/
-│           ├── handler.go
-│           └── routes.go
+│           └── user_routes.go
 ├── pkg/                        # Shared utilities
 │   ├── database/               # GORM setup
 │   ├── redis/                  # Redigo client
 │   ├── rabbitmq/               # RabbitMQ client
 │   ├── logger/                 # Zap logger
 │   ├── telemetry/              # OpenTelemetry setup
-│   ├── jwt/                    # JWT service
+│   ├── token/                  # PASETO token service
+│   ├── jwt/                    # Legacy JWT service/tests
 │   ├── validation/             # Validator with custom rules
 │   ├── middleware/             # HTTP/gRPC middleware + rate limiting
 │   ├── response/               # Standard responses
@@ -124,7 +123,7 @@ go-grst-boilerplate/
 
 ### Prerequisites
 
-- Go 1.21+
+- Go 1.25.11+ (CI and Docker use Go 1.25.11)
 - Docker & Docker Compose
 - Make
 
@@ -172,8 +171,8 @@ curl -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"password123"}'
 
-# Get profile (with token)
-curl http://localhost:3000/api/v1/user/profile \
+# Get current user (with token)
+curl http://localhost:3000/api/v1/auth/me \
   -H "Authorization: Bearer <your-token>"
 ```
 
@@ -207,7 +206,7 @@ REDIS_DB=0
 # RabbitMQ
 RABBITMQ_URL=amqp://guest:guest@localhost:5672/
 
-# JWT
+# PASETO token secret (legacy variable name)
 JWT_SECRET=your-super-secret-key
 JWT_EXPIRATION=24
 
@@ -229,14 +228,18 @@ LOG_FORMAT=json
 |--------|----------|------|-------------|
 | POST | `/api/v1/auth/register` | No | Register new user |
 | POST | `/api/v1/auth/login` | No | Login user |
+| POST | `/api/v1/auth/refresh` | Yes | Refresh access token |
+| GET | `/api/v1/auth/me` | Yes | Get current user profile |
+| POST | `/api/v1/auth/logout` | Yes | Logout current session |
 
 ### User
 
 | Method | Endpoint | Auth | Roles | Description |
 |--------|----------|------|-------|-------------|
-| GET | `/api/v1/user/profile` | Yes | Any | Get user profile |
-| GET | `/api/v1/admin/users` | Yes | admin, superadmin | List all users |
-| GET | `/api/v1/employee/payslip` | Yes | employee | Get payslip |
+| GET | `/api/v1/users` | Yes | admin, superadmin | List all users |
+| GET | `/api/v1/users/:id` | Yes | admin, superadmin | Get user by ID |
+| PUT | `/api/v1/users/:id` | Yes | admin, superadmin | Update user |
+| DELETE | `/api/v1/users/:id` | Yes | admin, superadmin | Soft-delete user |
 
 ### Health
 
@@ -244,6 +247,9 @@ LOG_FORMAT=json
 |--------|----------|-------------|
 | GET | `/health` | Health check |
 | GET | `/ready` | Readiness check |
+| GET | `/metrics` | Prometheus metrics |
+| GET | `/docs/openapi.json` | OpenAPI JSON |
+| GET | `/docs/` | Scalar API docs |
 
 ## gRPC Services
 
@@ -251,9 +257,13 @@ LOG_FORMAT=json
 service UserApi {
     rpc Register(RegisterReq) returns (RegisterRes);
     rpc Login(LoginReq) returns (LoginRes);
-    rpc GetProfile(google.protobuf.Empty) returns (UserProfile);
-    rpc ListAllUsers(ListUsersReq) returns (ListUsersRes);
-    rpc GetMyPayslip(GetPayslipReq) returns (Payslip);
+    rpc RefreshToken(RefreshTokenReq) returns (RefreshTokenRes);
+    rpc GetMe(google.protobuf.Empty) returns (UserProfile);
+    rpc Logout(google.protobuf.Empty) returns (LogoutRes);
+    rpc ListUsers(ListUsersReq) returns (ListUsersRes);
+    rpc GetUser(GetUserReq) returns (UserProfile);
+    rpc UpdateUser(UpdateUserReq) returns (UserProfile);
+    rpc DeleteUser(DeleteUserReq) returns (DeleteUserRes);
 }
 ```
 
@@ -370,11 +380,12 @@ Migration files are stored in `migrations/` directory:
 
 ```
 migrations/
-├── 000001_create_users_table.up.sql    # Creates users table
-├── 000001_create_users_table.down.sql  # Drops users table
-├── 000002_create_payslips_table.up.sql
+├── 000001_create_users_table.up.sql       # Creates users table
+├── 000001_create_users_table.down.sql     # Drops users table
+├── 000002_create_payslips_table.up.sql    # Legacy/sample payslip migration
 ├── 000002_create_payslips_table.down.sql
-└── ...
+├── 000003_create_audit_logs_table.up.sql
+└── 000003_create_audit_logs_table.down.sql
 ```
 
 ### Creating New Migrations
@@ -500,12 +511,12 @@ This boilerplate implements security best practices following the [OWASP Top 10]
 | OWASP Risk | Implementation |
 |------------|----------------|
 | **A01: Broken Access Control** | Role-based access control (RBAC) middleware, resource ownership verification |
-| **A02: Cryptographic Failures** | bcrypt password hashing, secure JWT secrets, TLS enforcement |
+| **A02: Cryptographic Failures** | bcrypt password hashing, secure PASETO secrets, TLS enforcement |
 | **A03: Injection** | Parameterized queries with GORM, input validation with go-playground/validator |
 | **A04: Insecure Design** | Rate limiting, account lockout, secure defaults |
 | **A05: Security Misconfiguration** | Environment-based config, secure CORS, security headers |
-| **A06: Vulnerable Components** | CI/CD with gosec and Trivy scanning, dependabot |
-| **A07: Auth Failures** | Strong password policy, JWT expiration, failed login tracking |
+| **A06: Vulnerable Components** | CI/CD test/build checks, dependabot-ready dependencies |
+| **A07: Auth Failures** | Strong password policy, token expiration, failed login tracking |
 | **A08: Data Integrity** | Request validation, file checksum verification |
 | **A09: Logging Failures** | Structured security logging with Zap, audit trails |
 | **A10: SSRF** | URL whitelist validation, internal IP blocking |
@@ -513,12 +524,7 @@ This boilerplate implements security best practices following the [OWASP Top 10]
 ### Security Features
 
 ```go
-// Role-based access control
-app.Get("/admin/users",
-    middleware.AuthMiddleware(jwtService),
-    middleware.RequireRoles("admin", "superadmin"),
-    handler.ListUsers,
-)
+// Role-based access control is configured per route/method in user_protokit.go.
 
 // Input validation
 type RegisterRequest struct {
@@ -534,25 +540,28 @@ hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.Defaul
 db.Where("email = ?", email).First(&user)
 ```
 
-### Security Scanning
+### CI Checks
 
 The CI/CD pipeline includes:
 
 ```yaml
 # .github/workflows/ci.yml
-- gosec: Static security analysis
-- trivy: Container vulnerability scanning
-- golangci-lint: Code quality with security linters
+- go test ./...
+- go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+- go build ./cmd/server
+- go build ./cmd/migrate
+- go build ./cmd/worker
+- Docker build/push on main/master pushes
 ```
 
 Run locally:
 
 ```bash
-# Install gosec
-go install github.com/securego/gosec/v2/cmd/gosec@latest
-
-# Run security scan
-gosec ./...
+go test ./...
+go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+go build ./cmd/server
+go build ./cmd/migrate
+go build ./cmd/worker
 ```
 
 See [CLAUDE.md](CLAUDE.md) for detailed security guidelines and code examples.
@@ -598,14 +607,7 @@ Interactive API documentation using Scalar UI:
 - **Scalar UI**: http://localhost:3000/docs
 - **OpenAPI JSON**: http://localhost:3000/docs/openapi.json
 
-Setup in your application:
-
-```go
-import "go-grst-boilerplate/docs"
-
-// Add Swagger documentation
-docs.SetupSwagger(app)
-```
+The server registers these routes during bootstrap.
 
 ## Docker
 

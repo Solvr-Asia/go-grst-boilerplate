@@ -23,10 +23,10 @@ var (
 // Config holds resilience configuration
 type Config struct {
 	// Circuit Breaker
-	CBFailureThreshold   uint          `mapstructure:"CB_FAILURE_THRESHOLD"`
-	CBSuccessThreshold   uint          `mapstructure:"CB_SUCCESS_THRESHOLD"`
-	CBDelay              time.Duration `mapstructure:"CB_DELAY"`
-	CBFailureRateThreshold float64     `mapstructure:"CB_FAILURE_RATE_THRESHOLD"`
+	CBFailureThreshold     uint          `mapstructure:"CB_FAILURE_THRESHOLD"`
+	CBSuccessThreshold     uint          `mapstructure:"CB_SUCCESS_THRESHOLD"`
+	CBDelay                time.Duration `mapstructure:"CB_DELAY"`
+	CBFailureRateThreshold float64       `mapstructure:"CB_FAILURE_RATE_THRESHOLD"`
 
 	// Retry
 	RetryMaxAttempts int           `mapstructure:"RETRY_MAX_ATTEMPTS"`
@@ -40,14 +40,14 @@ type Config struct {
 // DefaultConfig returns default resilience configuration
 func DefaultConfig() Config {
 	return Config{
-		CBFailureThreshold:    5,
-		CBSuccessThreshold:    3,
-		CBDelay:               30 * time.Second,
+		CBFailureThreshold:     5,
+		CBSuccessThreshold:     3,
+		CBDelay:                30 * time.Second,
 		CBFailureRateThreshold: 0.5,
-		RetryMaxAttempts:      3,
-		RetryDelay:            100 * time.Millisecond,
-		RetryMaxDelay:         2 * time.Second,
-		Timeout:               10 * time.Second,
+		RetryMaxAttempts:       3,
+		RetryDelay:             100 * time.Millisecond,
+		RetryMaxDelay:          2 * time.Second,
+		Timeout:                10 * time.Second,
 	}
 }
 
@@ -75,14 +75,14 @@ func WithLogger[T any](logger *zap.Logger) Option[T] {
 // WithFallback sets a fallback value
 func WithFallback[T any](fallbackFn func(exec failsafe.Execution[T]) (T, error)) Option[T] {
 	return func(e *Executor[T]) {
-		e.fallbackPolicy = fallback.BuilderWithFunc(fallbackFn).Build()
+		e.fallbackPolicy = fallback.NewBuilderWithFunc(fallbackFn).Build()
 	}
 }
 
 // WithFallbackValue sets a static fallback value
 func WithFallbackValue[T any](value T) Option[T] {
 	return func(e *Executor[T]) {
-		e.fallbackPolicy = fallback.WithResult(value)
+		e.fallbackPolicy = fallback.NewWithResult(value)
 	}
 }
 
@@ -99,7 +99,7 @@ func New[T any](name string, cfg Config, opts ...Option[T]) *Executor[T] {
 	}
 
 	// Build circuit breaker
-	e.circuitBreaker = circuitbreaker.Builder[T]().
+	e.circuitBreaker = circuitbreaker.NewBuilder[T]().
 		WithFailureThreshold(cfg.CBFailureThreshold).
 		WithSuccessThreshold(cfg.CBSuccessThreshold).
 		WithDelay(cfg.CBDelay).
@@ -113,7 +113,7 @@ func New[T any](name string, cfg Config, opts ...Option[T]) *Executor[T] {
 		Build()
 
 	// Build retry policy
-	e.retryPolicy = retrypolicy.Builder[T]().
+	e.retryPolicy = retrypolicy.NewBuilder[T]().
 		WithMaxAttempts(cfg.RetryMaxAttempts).
 		WithBackoff(cfg.RetryDelay, cfg.RetryMaxDelay).
 		OnRetry(func(event failsafe.ExecutionEvent[T]) {
@@ -126,7 +126,7 @@ func New[T any](name string, cfg Config, opts ...Option[T]) *Executor[T] {
 		Build()
 
 	// Build timeout policy
-	e.timeoutPolicy = timeout.Builder[T](cfg.Timeout).
+	e.timeoutPolicy = timeout.NewBuilder[T](cfg.Timeout).
 		OnTimeoutExceeded(func(event failsafe.ExecutionDoneEvent[T]) {
 			e.logger.Error("operation timed out",
 				zap.String("executor", name),
@@ -141,7 +141,7 @@ func New[T any](name string, cfg Config, opts ...Option[T]) *Executor[T] {
 		policies = append([]failsafe.Policy[T]{e.fallbackPolicy}, policies...)
 	}
 
-	e.executor = failsafe.NewExecutor(policies...)
+	e.executor = failsafe.With(policies...)
 
 	return e
 }
@@ -200,7 +200,7 @@ func NewSimple(name string, cfg Config, logger *zap.Logger) *SimpleExecutor {
 	}
 
 	// Build circuit breaker
-	e.circuitBreaker = circuitbreaker.Builder[any]().
+	e.circuitBreaker = circuitbreaker.NewBuilder[any]().
 		WithFailureThreshold(cfg.CBFailureThreshold).
 		WithSuccessThreshold(cfg.CBSuccessThreshold).
 		WithDelay(cfg.CBDelay).
@@ -214,7 +214,7 @@ func NewSimple(name string, cfg Config, logger *zap.Logger) *SimpleExecutor {
 		Build()
 
 	// Build retry policy
-	retryPolicy := retrypolicy.Builder[any]().
+	retryPolicy := retrypolicy.NewBuilder[any]().
 		WithMaxAttempts(cfg.RetryMaxAttempts).
 		WithBackoff(cfg.RetryDelay, cfg.RetryMaxDelay).
 		OnRetry(func(event failsafe.ExecutionEvent[any]) {
@@ -227,7 +227,7 @@ func NewSimple(name string, cfg Config, logger *zap.Logger) *SimpleExecutor {
 		Build()
 
 	// Build timeout policy
-	timeoutPolicy := timeout.Builder[any](cfg.Timeout).
+	timeoutPolicy := timeout.NewBuilder[any](cfg.Timeout).
 		OnTimeoutExceeded(func(event failsafe.ExecutionDoneEvent[any]) {
 			e.logger.Error("operation timed out",
 				zap.String("executor", name),
@@ -236,7 +236,7 @@ func NewSimple(name string, cfg Config, logger *zap.Logger) *SimpleExecutor {
 		}).
 		Build()
 
-	e.executor = failsafe.NewExecutor[any](timeoutPolicy, retryPolicy, e.circuitBreaker)
+	e.executor = failsafe.With[any](timeoutPolicy, retryPolicy, e.circuitBreaker)
 
 	return e
 }

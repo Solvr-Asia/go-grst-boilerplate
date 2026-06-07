@@ -2,9 +2,11 @@ package config
 
 import (
 	"go-grst-boilerplate/app/usecase/user"
+	"go-grst-boilerplate/docs"
 	"go-grst-boilerplate/handler"
 	pb_user "go-grst-boilerplate/handler/grpc/user"
 	http_user "go-grst-boilerplate/handler/http/user"
+	"go-grst-boilerplate/pkg/metrics"
 	"go-grst-boilerplate/pkg/middleware"
 	"go-grst-boilerplate/pkg/rabbitmq"
 	"go-grst-boilerplate/pkg/redis"
@@ -44,6 +46,9 @@ func Bootstrap(b *BootstrapConfig) *BootstrapResult {
 	// Token validator
 	tokenValidator := createTokenValidator(tokenService)
 
+	// Observability routes
+	registerObservabilityRoutes(b.App, b.Cfg.ServiceName)
+
 	// Health check
 	registerHealthChecks(b)
 
@@ -52,13 +57,22 @@ func Bootstrap(b *BootstrapConfig) *BootstrapResult {
 	userRoutes.RegisterRoutes(b.App, tokenValidator)
 
 	// gRPC server
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(middleware.GRPCAuthInterceptor(tokenValidator, pb_user.AuthConfigMethods)),
+	)
 	pb_user.RegisterUserApiServer(grpcServer, userHandler)
 	reflection.Register(grpcServer)
 
 	return &BootstrapResult{
 		GRPCServer: grpcServer,
 	}
+}
+
+func registerObservabilityRoutes(app *fiber.App, serviceName string) {
+	m := metrics.Init(serviceName)
+	app.Use(m.Middleware())
+	app.Get("/metrics", m.Handler())
+	docs.SetupSwagger(app)
 }
 
 func createTokenValidator(tokenService *token.TokenService) middleware.TokenValidator {
