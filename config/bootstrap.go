@@ -1,11 +1,16 @@
 package config
 
 import (
+	"context"
+	"fmt"
+
 	"go-grst-boilerplate/app/usecase/user"
 	"go-grst-boilerplate/docs"
 	"go-grst-boilerplate/handler"
 	pb_user "go-grst-boilerplate/handler/grpc/user"
 	http_user "go-grst-boilerplate/handler/http/user"
+	"go-grst-boilerplate/pkg/authguard"
+	"go-grst-boilerplate/pkg/errors"
 	"go-grst-boilerplate/pkg/metrics"
 	"go-grst-boilerplate/pkg/middleware"
 	"go-grst-boilerplate/pkg/rabbitmq"
@@ -14,6 +19,7 @@ import (
 	"go-grst-boilerplate/repository/user_repository"
 
 	"github.com/gofiber/fiber/v2"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -36,18 +42,23 @@ type BootstrapResult struct {
 }
 
 // Bootstrap wires repositories, usecases, handlers, and routes.
-func Bootstrap(b *BootstrapConfig) *BootstrapResult {
+func Bootstrap(b *BootstrapConfig) (*BootstrapResult, error) {
 	// Layers
 	userRepo := user_repository.New(b.DB)
 	userUC := user.NewUseCase(userRepo)
-	tokenService := token.NewTokenService(b.Cfg.JWTSecret, b.Cfg.JWTExpiration)
-	userHandler := handler.NewUserHandler(userUC, tokenService)
+	tokenService, err := token.NewTokenService(b.Cfg.JWTSecret, b.Cfg.JWTExpiration)
+	if err != nil {
+		return nil, fmt.Errorf("init token service: %w", err)
+	}
+	// Login lockout + token revocation, backed by Redis (no-op if Redis is nil).
+	guard := authguard.New(b.Redis, b.Cfg.LoginMaxAttempts, b.Cfg.LoginLockoutMinutes)
+	userHandler := handler.NewUserHandler(userUC, tokenService, guard, b.Log)
 
 	// Token validator
-	tokenValidator := createTokenValidator(tokenService)
+	tokenValidator := createTokenValidator(tokenService, guard)
 
 	// Observability routes
-	registerObservabilityRoutes(b.App, b.Cfg.ServiceName)
+	registerObservabilityRoutes(b.App, b.Cfg)
 
 	// Health check
 	registerHealthChecks(b)
@@ -56,30 +67,60 @@ func Bootstrap(b *BootstrapConfig) *BootstrapResult {
 	userRoutes := http_user.NewUserRoutes(userHandler)
 	userRoutes.RegisterRoutes(b.App, tokenValidator)
 
-	// gRPC server
+	// gRPC server. Interceptor order (outermost first): recovery catches panics
+	// from everything downstream, then logging, then auth. Tracing is attached
+	// via the OTel stats handler.
 	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(middleware.GRPCAuthInterceptor(tokenValidator, pb_user.AuthConfigMethods)),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.ChainUnaryInterceptor(
+			middleware.GRPCRecoveryInterceptor(b.Log),
+			middleware.GRPCLoggingInterceptor(b.Log),
+			middleware.GRPCAuthInterceptor(tokenValidator, pb_user.AuthConfigMethods),
+		),
 	)
 	pb_user.RegisterUserApiServer(grpcServer, userHandler)
-	reflection.Register(grpcServer)
+	// Reflection eases local debugging (grpcurl) but exposes the full service
+	// surface; keep it out of production.
+	if b.Cfg.Environment != "production" {
+		reflection.Register(grpcServer)
+	}
 
 	return &BootstrapResult{
 		GRPCServer: grpcServer,
-	}
+	}, nil
 }
 
-func registerObservabilityRoutes(app *fiber.App, serviceName string) {
-	m := metrics.Init(serviceName)
+func registerObservabilityRoutes(app *fiber.App, cfg *Config) {
+	m := metrics.Init(cfg.ServiceName)
 	app.Use(m.Middleware())
-	app.Get("/metrics", m.Handler())
+	app.Get("/metrics", metricsAuth(cfg.MetricsAuthToken), m.Handler())
 	docs.SetupSwagger(app)
 }
 
-func createTokenValidator(tokenService *token.TokenService) middleware.TokenValidator {
-	return func(token string) (*middleware.AuthContext, error) {
-		claims, err := tokenService.ValidateToken(token)
+// metricsAuth optionally guards the /metrics endpoint with a bearer token. When
+// no token is configured it is a pass-through (restrict at the network layer).
+func metricsAuth(token string) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if token == "" {
+			return c.Next()
+		}
+		if c.Get("Authorization") != "Bearer "+token {
+			return errors.Unauthorized("unauthorized").FiberError(c)
+		}
+		return c.Next()
+	}
+}
+
+func createTokenValidator(tokenService *token.TokenService, guard *authguard.Guard) middleware.TokenValidator {
+	return func(tokenStr string) (*middleware.AuthContext, error) {
+		claims, err := tokenService.ValidateToken(tokenStr)
 		if err != nil {
 			return nil, err
+		}
+
+		// Reject tokens that have been revoked (logout / refresh rotation).
+		if guard.IsRevoked(context.Background(), claims.TokenID) {
+			return nil, token.ErrInvalidToken
 		}
 
 		return &middleware.AuthContext{
@@ -87,7 +128,9 @@ func createTokenValidator(tokenService *token.TokenService) middleware.TokenVali
 			Email:       claims.Email,
 			Roles:       claims.Roles,
 			CompanyCode: claims.CompanyCode,
-			Token:       token,
+			Token:       tokenStr,
+			TokenID:     claims.TokenID,
+			ExpiresAt:   claims.ExpiresAt,
 		}, nil
 	}
 }
@@ -115,7 +158,7 @@ func registerHealthChecks(b *BootstrapConfig) {
 		if b.Redis != nil {
 			conn := b.Redis.Conn()
 			_, err := conn.Do("PING")
-			conn.Close()
+			_ = conn.Close()
 			if err != nil {
 				checks["redis"] = "unhealthy"
 			} else {
@@ -125,9 +168,13 @@ func registerHealthChecks(b *BootstrapConfig) {
 			checks["redis"] = "disabled"
 		}
 
-		// Check RabbitMQ
+		// Check RabbitMQ (actually verify the connection, not just non-nil).
 		if b.RabbitMQ != nil {
-			checks["rabbitmq"] = "healthy"
+			if err := b.RabbitMQ.Ping(); err != nil {
+				checks["rabbitmq"] = "unhealthy"
+			} else {
+				checks["rabbitmq"] = "healthy"
+			}
 		} else {
 			checks["rabbitmq"] = "disabled"
 		}

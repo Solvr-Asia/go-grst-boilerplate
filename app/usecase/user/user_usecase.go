@@ -1,3 +1,4 @@
+// Package user contains user business logic (the usecase layer).
 package user
 
 import (
@@ -12,10 +13,25 @@ import (
 )
 
 var (
-	ErrEmailExists  = errors.New("email already registered")
-	ErrNotFound     = errors.New("user not found")
-	ErrInvalidCreds = errors.New("invalid credentials")
+	ErrEmailExists   = errors.New("email already registered")
+	ErrNotFound      = errors.New("user not found")
+	ErrInvalidCreds  = errors.New("invalid credentials")
+	ErrUserNotActive = errors.New("user account is not active")
 )
+
+// dummyPasswordHash is a valid bcrypt hash of an arbitrary value, compared
+// against on the user-not-found login path to equalize timing and mitigate
+// user enumeration. Generated once at package init at the same cost as real
+// password hashing.
+var dummyPasswordHash []byte
+
+func init() {
+	h, err := bcrypt.GenerateFromPassword([]byte("timing-equalization-placeholder"), bcrypt.DefaultCost)
+	if err != nil {
+		panic("failed to initialize dummy password hash: " + err.Error())
+	}
+	dummyPasswordHash = h
+}
 
 type UseCase interface {
 	Register(ctx context.Context, input RegisterInput) (*RegisterOutput, error)
@@ -83,10 +99,15 @@ func (uc *useCase) Register(ctx context.Context, input RegisterInput) (*Register
 		Password: string(hashedPassword),
 		Name:     input.Name,
 		Phone:    input.Phone,
-		Status:   entity.UserStatusPending,
+		Status:   entity.UserStatusActive,
 	}
 
 	if err := uc.userRepo.Create(ctx, user); err != nil {
+		// Closes the check-then-insert race: two concurrent registrations pass
+		// the FindByEmail check, but the unique index rejects the second insert.
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil, ErrEmailExists
+		}
 		return nil, err
 	}
 
@@ -101,6 +122,10 @@ func (uc *useCase) Login(ctx context.Context, email, password string) (*entity.U
 	user, err := uc.userRepo.FindByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Perform a dummy hash comparison so the not-found path takes
+			// roughly the same time as the wrong-password path, mitigating
+			// user enumeration via response timing.
+			_ = bcrypt.CompareHashAndPassword(dummyPasswordHash, []byte(password))
 			return nil, ErrInvalidCreds
 		}
 		return nil, err
@@ -108,6 +133,12 @@ func (uc *useCase) Login(ctx context.Context, email, password string) (*entity.U
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
 		return nil, ErrInvalidCreds
+	}
+
+	// Only active accounts may authenticate. Deactivated (inactive) or
+	// not-yet-activated (pending) users are rejected even with valid credentials.
+	if user.Status != entity.UserStatusActive {
+		return nil, ErrUserNotActive
 	}
 
 	return user, nil
@@ -146,25 +177,29 @@ func (uc *useCase) GetUser(ctx context.Context, userID string) (*entity.User, er
 }
 
 func (uc *useCase) UpdateUser(ctx context.Context, userID string, input UpdateInput) (*entity.User, error) {
-	user, err := uc.userRepo.FindByID(ctx, userID)
+	// Build a column-scoped update so only changed fields are written; this
+	// avoids the lost-update hazard of read-modify-write with Save.
+	fields := map[string]interface{}{}
+	if input.Name != "" {
+		fields["name"] = input.Name
+	}
+	if input.Phone != "" {
+		fields["phone"] = input.Phone
+	}
+	if input.Status != "" {
+		fields["status"] = input.Status
+	}
+
+	// No changes requested: return the current record (or not-found).
+	if len(fields) == 0 {
+		return uc.GetUser(ctx, userID)
+	}
+
+	user, err := uc.userRepo.UpdateFields(ctx, userID, fields)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrNotFound
 		}
-		return nil, err
-	}
-
-	if input.Name != "" {
-		user.Name = input.Name
-	}
-	if input.Phone != "" {
-		user.Phone = input.Phone
-	}
-	if input.Status != "" {
-		user.Status = entity.UserStatus(input.Status)
-	}
-
-	if err := uc.userRepo.Update(ctx, user); err != nil {
 		return nil, err
 	}
 

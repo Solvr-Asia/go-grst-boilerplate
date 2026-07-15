@@ -1,12 +1,14 @@
 package resilience
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 )
 
@@ -46,10 +48,13 @@ func NewHTTPClient(name string, cfg HTTPClientConfig, logger *zap.Logger) *HTTPC
 	}
 
 	client := &http.Client{
-		Timeout:   cfg.Timeout,
-		Transport: transport,
+		Timeout: cfg.Timeout,
+		// otelhttp creates a client span per request and injects W3C trace
+		// context into outgoing headers so downstream services join the trace.
+		Transport: otelhttp.NewTransport(transport),
 	}
 
+	//nolint:bodyclose // false positive: *http.Response type param, no response created here
 	executor := New[*http.Response](
 		fmt.Sprintf("http-client-%s", name),
 		cfg.ResilienceConfig,
@@ -63,11 +68,33 @@ func NewHTTPClient(name string, cfg HTTPClientConfig, logger *zap.Logger) *HTTPC
 	}
 }
 
-// Do executes an HTTP request with resilience
+// Do executes an HTTP request with resilience. The request body is buffered so
+// that each retry attempt can re-send it — without this, the body is consumed on
+// the first attempt and every retry would send an empty body.
 func (c *HTTPClient) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
+	var bodyBytes []byte
+	if req.Body != nil {
+		b, err := io.ReadAll(req.Body)
+		_ = req.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("read request body: %w", err)
+		}
+		bodyBytes = b
+	}
+
 	return c.executor.Execute(ctx, func(ctx context.Context) (*http.Response, error) {
-		req = req.WithContext(ctx)
-		resp, err := c.client.Do(req)
+		// Clone per attempt so headers/context are not mutated across retries,
+		// and attach a fresh body reader from the buffered bytes.
+		attempt := req.Clone(ctx)
+		if bodyBytes != nil {
+			attempt.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+			attempt.ContentLength = int64(len(bodyBytes))
+			attempt.GetBody = func() (io.ReadCloser, error) {
+				return io.NopCloser(bytes.NewReader(bodyBytes)), nil
+			}
+		}
+
+		resp, err := c.client.Do(attempt) //nolint:bodyclose // body is returned to and closed by the caller
 		if err != nil {
 			return nil, err
 		}

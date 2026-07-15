@@ -1,3 +1,4 @@
+// Package resilience provides circuit-breaker, retry, and timeout wrappers.
 package resilience
 
 import (

@@ -1,3 +1,4 @@
+// Package user_repository provides data access for users.
 package user_repository
 
 import (
@@ -13,7 +14,11 @@ type Repository interface {
 	FindByID(ctx context.Context, id string) (*entity.User, error)
 	FindByEmail(ctx context.Context, email string) (*entity.User, error)
 	FindAll(ctx context.Context, params ListParams) ([]entity.User, int64, error)
-	Update(ctx context.Context, user *entity.User) error
+	// UpdateFields applies a partial update to only the given columns and
+	// returns the refreshed row. It returns gorm.ErrRecordNotFound if no live
+	// row matches. Using column-scoped updates (instead of Save on a
+	// previously-read struct) avoids clobbering columns changed concurrently.
+	UpdateFields(ctx context.Context, id string, fields map[string]interface{}) (*entity.User, error)
 	Delete(ctx context.Context, id string) error
 }
 
@@ -23,6 +28,16 @@ type ListParams struct {
 	Search    string
 	SortBy    string
 	SortOrder string
+}
+
+// allowedSortColumns whitelists the columns that may appear in ORDER BY, since
+// the column name is concatenated into raw SQL and cannot be parameterized.
+var allowedSortColumns = map[string]bool{
+	"created_at": true,
+	"updated_at": true,
+	"name":       true,
+	"email":      true,
+	"status":     true,
 }
 
 type repository struct {
@@ -70,13 +85,16 @@ func (r *repository) FindAll(ctx context.Context, params ListParams) ([]entity.U
 		return nil, 0, err
 	}
 
-	sortColumn := params.SortBy
-	if sortColumn == "" {
-		sortColumn = "created_at"
+	// Whitelist sort column and direction. These are concatenated into the SQL
+	// ORDER BY clause (GORM cannot parameterize identifiers), so they must never
+	// come straight from user input.
+	sortColumn := "created_at"
+	if allowedSortColumns[params.SortBy] {
+		sortColumn = params.SortBy
 	}
-	sortOrder := params.SortOrder
-	if sortOrder == "" {
-		sortOrder = "desc"
+	sortOrder := "desc"
+	if params.SortOrder == "asc" {
+		sortOrder = "asc"
 	}
 
 	offset := (params.Page - 1) * params.Size
@@ -93,11 +111,25 @@ func (r *repository) FindAll(ctx context.Context, params ListParams) ([]entity.U
 	return users, total, nil
 }
 
-func (r *repository) Update(ctx context.Context, user *entity.User) error {
-	return r.db.WithContext(ctx).Save(user).Error
+func (r *repository) UpdateFields(ctx context.Context, id string, fields map[string]interface{}) (*entity.User, error) {
+	result := r.db.WithContext(ctx).
+		Model(&entity.User{}).
+		Where("id = ?", id).
+		Updates(fields)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+
+	var user entity.User
+	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
 }
 
 func (r *repository) Delete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Where("id = ?", id).Delete(&entity.User{}).Error
 }
-

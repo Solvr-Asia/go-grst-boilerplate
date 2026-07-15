@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -43,9 +44,12 @@ func (m *MockUserRepository) FindAll(ctx context.Context, params user_repository
 	return args.Get(0).([]entity.User), args.Get(1).(int64), args.Error(2)
 }
 
-func (m *MockUserRepository) Update(ctx context.Context, user *entity.User) error {
-	args := m.Called(ctx, user)
-	return args.Error(0)
+func (m *MockUserRepository) UpdateFields(ctx context.Context, id string, fields map[string]interface{}) (*entity.User, error) {
+	args := m.Called(ctx, id, fields)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*entity.User), args.Error(1)
 }
 
 func (m *MockUserRepository) Delete(ctx context.Context, id string) error {
@@ -104,6 +108,43 @@ func TestRegister_EmailExists(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, ErrEmailExists, err)
 	assert.Nil(t, result)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestRegister_DuplicateKeyRace(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	uc := NewUseCase(mockRepo)
+	ctx := context.Background()
+
+	input := RegisterInput{Email: "race@example.com", Password: "Password123", Name: "Race"}
+
+	// FindByEmail says the user does not exist (both concurrent requests pass),
+	// but the unique index rejects the insert with a duplicate-key error.
+	mockRepo.On("FindByEmail", ctx, input.Email).Return(nil, gorm.ErrRecordNotFound)
+	mockRepo.On("Create", ctx, mock.AnythingOfType("*entity.User")).Return(gorm.ErrDuplicatedKey)
+
+	_, err := uc.Register(ctx, input)
+	assert.ErrorIs(t, err, ErrEmailExists)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestLogin_InactiveUserRejected(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	uc := NewUseCase(mockRepo)
+	ctx := context.Background()
+
+	hash, err := bcrypt.GenerateFromPassword([]byte("Password123"), bcrypt.DefaultCost)
+	assert.NoError(t, err)
+
+	mockRepo.On("FindByEmail", ctx, "inactive@example.com").Return(&entity.User{
+		ID:       "u1",
+		Email:    "inactive@example.com",
+		Password: string(hash),
+		Status:   entity.UserStatusInactive,
+	}, nil)
+
+	_, err = uc.Login(ctx, "inactive@example.com", "Password123")
+	assert.ErrorIs(t, err, ErrUserNotActive)
 	mockRepo.AssertExpectations(t)
 }
 
@@ -183,16 +224,15 @@ func TestUpdateUser_Success(t *testing.T) {
 	ctx := context.Background()
 
 	userID := "user-123"
-	existingUser := &entity.User{
+	updatedUser := &entity.User{
 		ID:     userID,
 		Email:  "test@example.com",
-		Name:   "Old Name",
-		Phone:  "081234567890",
+		Name:   "New Name",
+		Phone:  "089876543210",
 		Status: entity.UserStatusActive,
 	}
 
-	mockRepo.On("FindByID", ctx, userID).Return(existingUser, nil)
-	mockRepo.On("Update", ctx, mock.AnythingOfType("*entity.User")).Return(nil)
+	mockRepo.On("UpdateFields", ctx, userID, mock.AnythingOfType("map[string]interface {}")).Return(updatedUser, nil)
 
 	result, err := uc.UpdateUser(ctx, userID, UpdateInput{
 		Name:  "New Name",

@@ -1,3 +1,4 @@
+// Package database provides GORM/Postgres setup and query helpers.
 package database
 
 import (
@@ -17,32 +18,49 @@ import (
 type zapGormLogger struct {
 	logger        *zap.Logger
 	slowThreshold time.Duration
+	level         logger.LogLevel
 }
 
+// newZapGormLogger defaults to Warn: successful queries (whose interpolated SQL
+// can contain sensitive values such as password hashes) are not logged, only
+// slow queries and errors. Raise the level via LogMode for debugging.
 func newZapGormLogger(zapLogger *zap.Logger) *zapGormLogger {
 	return &zapGormLogger{
 		logger:        zapLogger,
 		slowThreshold: 200 * time.Millisecond,
+		level:         logger.Warn,
 	}
 }
 
 func (l *zapGormLogger) LogMode(level logger.LogLevel) logger.Interface {
-	return l
+	clone := *l
+	clone.level = level
+	return &clone
 }
 
 func (l *zapGormLogger) Info(ctx context.Context, msg string, data ...interface{}) {
-	l.logger.Sugar().Infof(msg, data...)
+	if l.level >= logger.Info {
+		l.logger.Sugar().Infof(msg, data...)
+	}
 }
 
 func (l *zapGormLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
-	l.logger.Sugar().Warnf(msg, data...)
+	if l.level >= logger.Warn {
+		l.logger.Sugar().Warnf(msg, data...)
+	}
 }
 
 func (l *zapGormLogger) Error(ctx context.Context, msg string, data ...interface{}) {
-	l.logger.Sugar().Errorf(msg, data...)
+	if l.level >= logger.Error {
+		l.logger.Sugar().Errorf(msg, data...)
+	}
 }
 
 func (l *zapGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql string, rowsAffected int64), err error) {
+	if l.level <= logger.Silent {
+		return
+	}
+
 	elapsed := time.Since(begin)
 	sql, rows := fc()
 
@@ -52,17 +70,14 @@ func (l *zapGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (s
 		zap.String("sql", sql),
 	}
 
-	if err != nil {
+	switch {
+	case err != nil && l.level >= logger.Error:
 		l.logger.Error("gorm query error", append(fields, zap.Error(err))...)
-		return
-	}
-
-	if elapsed > l.slowThreshold {
+	case elapsed > l.slowThreshold && l.level >= logger.Warn:
 		l.logger.Warn("gorm slow query", fields...)
-		return
+	case l.level >= logger.Info:
+		l.logger.Debug("gorm query", fields...)
 	}
-
-	l.logger.Debug("gorm query", fields...)
 }
 
 // Config holds database connection parameters.
@@ -75,10 +90,15 @@ type Config struct {
 	Name     string
 	SSLMode  string
 	Timezone string
-	
+
 	// Performance Settings
 	PrepareStmt            bool // Enable prepared statement cache (recommended: true)
 	SkipDefaultTransaction bool // Disable default transactions for write operations (use with caution)
+
+	// Connection pool (zero values fall back to sensible defaults)
+	MaxIdleConns    int
+	MaxOpenConns    int
+	ConnMaxLifetime time.Duration
 }
 
 func New(cfg Config, zapLogger *zap.Logger) (*gorm.DB, error) {
@@ -92,7 +112,7 @@ func New(cfg Config, zapLogger *zap.Logger) (*gorm.DB, error) {
 		cfg.SSLMode,
 		cfg.Timezone,
 	)
-	
+
 	// Only include password if provided (supports passwordless auth)
 	if cfg.Password != "" {
 		dsn = fmt.Sprintf(
@@ -112,6 +132,9 @@ func New(cfg Config, zapLogger *zap.Logger) (*gorm.DB, error) {
 		Logger:                 newZapGormLogger(zapLogger),
 		PrepareStmt:            cfg.PrepareStmt,            // (PERF) Cache prepared statements
 		SkipDefaultTransaction: cfg.SkipDefaultTransaction, // (PERF) Skip transactions for better performance
+		// Translate driver errors to GORM sentinels (e.g. unique violations to
+		// gorm.ErrDuplicatedKey) so callers can handle them driver-agnostically.
+		TranslateError: true,
 	}
 
 	db, err := gorm.Open(postgres.Open(dsn), gormConfig)
@@ -129,10 +152,22 @@ func New(cfg Config, zapLogger *zap.Logger) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to get database instance: %w", err)
 	}
 
-	// Connection pool settings
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetMaxOpenConns(100)
-	sqlDB.SetConnMaxLifetime(time.Hour)
+	// Connection pool settings (configurable, with defaults)
+	maxIdle := cfg.MaxIdleConns
+	if maxIdle <= 0 {
+		maxIdle = 10
+	}
+	maxOpen := cfg.MaxOpenConns
+	if maxOpen <= 0 {
+		maxOpen = 100
+	}
+	connMaxLifetime := cfg.ConnMaxLifetime
+	if connMaxLifetime <= 0 {
+		connMaxLifetime = time.Hour
+	}
+	sqlDB.SetMaxIdleConns(maxIdle)
+	sqlDB.SetMaxOpenConns(maxOpen)
+	sqlDB.SetConnMaxLifetime(connMaxLifetime)
 
 	zapLogger.Info("Database connection established",
 		zap.String("host", cfg.Host),

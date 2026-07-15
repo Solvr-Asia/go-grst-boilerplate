@@ -33,7 +33,14 @@ func fetchInfisicalSecrets(ctx context.Context, cfg InfisicalConfig) (map[string
 		return nil, err
 	}
 
-	client := infisical.NewInfisicalClient(ctx, infisical.Config{
+	// The SDK starts a background token-refresh goroutine bound to this context.
+	// Secrets are fetched once at startup, so derive a cancellable context and
+	// cancel it on return to stop that goroutine rather than leaking it for the
+	// entire process lifetime.
+	clientCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	client := infisical.NewInfisicalClient(clientCtx, infisical.Config{
 		SiteUrl:    cfg.SiteURL,
 		SilentMode: true,
 	})
@@ -91,6 +98,6 @@ func applyInfisicalSecrets(secrets map[string]string, override bool) {
 				continue
 			}
 		}
-		os.Setenv(key, value)
+		_ = os.Setenv(key, value)
 	}
 }

@@ -640,13 +640,16 @@ func RequireRoles(roles ...string) fiber.Handler {
 }
 
 // ✓ Good: Verify resource ownership
-func (uc *UserUseCase) GetPayslip(ctx context.Context, userID string, year, month int) (*entity.Payslip, error) {
-    // User can only access their own payslip
-    authUser := ctx.Value("auth").(*middleware.AuthContext)
-    if authUser.UserID != userID && !authUser.HasRole("admin") {
-        return nil, errors.Forbidden("cannot access other user's payslip")
+func (uc *UserUseCase) GetUserProfile(ctx context.Context, targetUserID string) (*entity.User, error) {
+    // Users can only access their own profile unless they are admins.
+    authUser, _ := middleware.AuthFromContext(ctx)
+    if authUser == nil {
+        return nil, errors.Unauthorized("authentication required")
     }
-    return uc.repo.FindPayslip(ctx, userID, year, month)
+    if authUser.UserID != targetUserID && !authUser.HasRole("admin") {
+        return nil, errors.Forbidden("cannot access other user's profile")
+    }
+    return uc.repo.FindByID(ctx, targetUserID)
 }
 ```
 
@@ -816,10 +819,10 @@ logger.Info("user logged in",
 )
 
 // ✓ Good: Log access to sensitive data
-logger.Info("payslip accessed",
+logger.Info("user record accessed",
     zap.String("accessor_id", authCtx.UserID),
     zap.String("target_user_id", targetUserID),
-    zap.String("action", "view_payslip"),
+    zap.String("action", "view_user"),
 )
 
 // ✗ Bad: Logging sensitive data

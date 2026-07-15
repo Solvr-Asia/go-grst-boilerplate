@@ -59,7 +59,7 @@ func RateLimitMiddleware(cfg RateLimitConfig) fiber.Handler {
 			}
 			return c.IP()
 		},
-		LimitReached: cfg.LimitReached,
+		LimitReached:           cfg.LimitReached,
 		SkipFailedRequests:     false,
 		SkipSuccessfulRequests: false,
 	}
@@ -79,7 +79,7 @@ func RateLimitMiddleware(cfg RateLimitConfig) fiber.Handler {
 	}
 }
 
-// RateLimitByEndpoint creates different rate limits per endpoint
+// EndpointRateLimit configures a rate limit for a specific method+path.
 type EndpointRateLimit struct {
 	Path     string
 	Method   string
@@ -87,52 +87,40 @@ type EndpointRateLimit struct {
 	Duration time.Duration
 }
 
-// RateLimitByEndpointMiddleware creates rate limiting with per-endpoint configuration
+// RateLimitByEndpointMiddleware creates rate limiting with per-endpoint configuration.
+// All limiters are built up-front so the lookup map is read-only while serving
+// requests — lazily populating it from the handler would be a concurrent map
+// write and could crash the process under load.
 func RateLimitByEndpointMiddleware(defaults RateLimitConfig, endpoints []EndpointRateLimit) fiber.Handler {
-	// Create a map for quick lookup
-	endpointLimits := make(map[string]EndpointRateLimit)
+	limiters := make(map[string]fiber.Handler, len(endpoints))
 	for _, ep := range endpoints {
 		key := ep.Method + " " + ep.Path
-		endpointLimits[key] = ep
+		limiters[key] = limiter.New(limiter.Config{
+			Max:        ep.Max,
+			Expiration: ep.Duration,
+			KeyGenerator: func(c *fiber.Ctx) string {
+				return c.IP() + ":" + key
+			},
+			LimitReached: defaults.LimitReached,
+		})
 	}
 
-	// Create limiters for each unique config
-	limiters := make(map[string]fiber.Handler)
+	defaultLimiter := limiter.New(limiter.Config{
+		Max:          defaults.Max,
+		Expiration:   defaults.Duration,
+		KeyGenerator: defaults.KeyGenerator,
+		LimitReached: defaults.LimitReached,
+	})
 
 	return func(c *fiber.Ctx) error {
-		// Check if should skip
 		if defaults.Skip != nil && defaults.Skip(c) {
 			return c.Next()
 		}
 
-		// Check for endpoint-specific limit
-		key := c.Method() + " " + c.Path()
-		if ep, ok := endpointLimits[key]; ok {
-			// Get or create limiter for this endpoint
-			if _, exists := limiters[key]; !exists {
-				limiters[key] = limiter.New(limiter.Config{
-					Max:        ep.Max,
-					Expiration: ep.Duration,
-					KeyGenerator: func(c *fiber.Ctx) string {
-						return c.IP() + ":" + key
-					},
-					LimitReached: defaults.LimitReached,
-				})
-			}
-			return limiters[key](c)
+		if h, ok := limiters[c.Method()+" "+c.Path()]; ok {
+			return h(c)
 		}
-
-		// Use default limiter
-		if _, exists := limiters["default"]; !exists {
-			limiters["default"] = limiter.New(limiter.Config{
-				Max:          defaults.Max,
-				Expiration:   defaults.Duration,
-				KeyGenerator: defaults.KeyGenerator,
-				LimitReached: defaults.LimitReached,
-			})
-		}
-
-		return limiters["default"](c)
+		return defaultLimiter(c)
 	}
 }
 

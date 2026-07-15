@@ -1,3 +1,4 @@
+// Package migrate wraps golang-migrate for schema migrations.
 package migrate
 
 import (

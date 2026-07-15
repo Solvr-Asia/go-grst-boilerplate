@@ -1,12 +1,33 @@
+// Package middleware provides HTTP and gRPC middleware (auth, logging, tracing, rate limiting).
 package middleware
 
 import (
+	"context"
 	"strings"
+	"time"
 
 	"go-grst-boilerplate/pkg/errors"
 
 	"github.com/gofiber/fiber/v2"
 )
+
+// ctxKey is an unexported type for context keys defined in this package,
+// preventing collisions with keys defined elsewhere (an untyped string key
+// like "auth" can silently clash across packages).
+type ctxKey int
+
+const authCtxKey ctxKey = iota
+
+// WithAuthContext returns a new context carrying the authenticated user.
+func WithAuthContext(ctx context.Context, a *AuthContext) context.Context {
+	return context.WithValue(ctx, authCtxKey, a)
+}
+
+// AuthFromContext extracts the authenticated user from the context, if present.
+func AuthFromContext(ctx context.Context) (*AuthContext, bool) {
+	a, ok := ctx.Value(authCtxKey).(*AuthContext)
+	return a, ok
+}
 
 type AuthContext struct {
 	UserID      string
@@ -14,6 +35,10 @@ type AuthContext struct {
 	Roles       []string
 	CompanyCode string
 	Token       string
+	// TokenID is the token's jti, used to revoke this specific token.
+	TokenID string
+	// ExpiresAt is the token's natural expiry, used to bound revocation TTL.
+	ExpiresAt time.Time
 }
 
 type AuthConfig struct {

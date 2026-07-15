@@ -1,9 +1,11 @@
+// Package entity holds the domain models.
 package entity
 
 import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
@@ -22,7 +24,7 @@ type User struct {
 	Name        string         `gorm:"not null" json:"name"`
 	Phone       string         `json:"phone"`
 	Status      UserStatus     `gorm:"type:varchar(20);default:active" json:"status"`
-	Roles       []string       `gorm:"type:text[];default:ARRAY['user']::TEXT[]" json:"roles"`
+	Roles       pq.StringArray `gorm:"type:text[];default:ARRAY['user']::TEXT[]" json:"roles"`
 	CompanyCode string         `gorm:"type:varchar(50)" json:"companyCode"`
 	CreatedAt   time.Time      `json:"createdAt"`
 	UpdatedAt   time.Time      `json:"updatedAt"`

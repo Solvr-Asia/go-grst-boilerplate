@@ -1,7 +1,9 @@
+// Package seeds provides database seeders.
 package seeds
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -92,12 +94,17 @@ func (s *Seeder) SeedUsers(ctx context.Context) error {
 	}
 
 	for _, u := range users {
-		// Check if user already exists
+		// Check if user already exists. Only a "record not found" result means
+		// we should insert; any other error is a real failure to surface, not a
+		// signal to blindly create a duplicate.
 		var existingUser entity.User
 		result := s.db.WithContext(ctx).Where("email = ?", u.Email).First(&existingUser)
-		if result.Error == nil {
+		switch {
+		case result.Error == nil:
 			fmt.Printf("  User %s already exists, skipping...\n", u.Email)
 			continue
+		case !errors.Is(result.Error, gorm.ErrRecordNotFound):
+			return fmt.Errorf("failed to check existing user %s: %w", u.Email, result.Error)
 		}
 
 		// Hash password

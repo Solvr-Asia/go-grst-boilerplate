@@ -12,6 +12,7 @@ func NewTelemetry(ctx context.Context, cfg *Config) (*telemetry.Telemetry, error
 		Environment:  cfg.Environment,
 		Endpoint:     cfg.OTelEndpoint,
 		ExporterType: cfg.OTelExporterType,
+		SampleRatio:  cfg.OTelSampleRatio,
 		Enabled:      cfg.OTelEnabled,
 	})
 }

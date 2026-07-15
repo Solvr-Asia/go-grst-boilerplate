@@ -10,12 +10,15 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-const grpcAuthContextKey = "auth"
-
 func GRPCAuthInterceptor(validator TokenValidator, authConfig map[string]AuthConfig) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		config, ok := authConfig[info.FullMethod]
-		if !ok || !config.NeedAuth {
+		if !ok {
+			// Fail closed: a method with no explicit auth policy is denied
+			// rather than served without authentication.
+			return nil, errors.Unauthorized("no auth policy configured for method").GRPCStatus().Err()
+		}
+		if !config.NeedAuth {
 			return handler(ctx, req)
 		}
 
@@ -34,13 +37,12 @@ func GRPCAuthInterceptor(validator TokenValidator, authConfig map[string]AuthCon
 		}
 
 		authCtx.Token = token
-		return handler(context.WithValue(ctx, grpcAuthContextKey, authCtx), req)
+		return handler(WithAuthContext(ctx, authCtx), req)
 	}
 }
 
 func GetGRPCAuthContext(ctx context.Context) (*AuthContext, bool) {
-	authCtx, ok := ctx.Value(grpcAuthContextKey).(*AuthContext)
-	return authCtx, ok
+	return AuthFromContext(ctx)
 }
 
 func extractBearerToken(ctx context.Context) (string, error) {

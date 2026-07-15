@@ -1,3 +1,4 @@
+// Command migrate is a CLI for database migrations and seeding.
 package main
 
 import (
@@ -151,7 +152,7 @@ func runMigrate(dbURL, migrationsPath string) {
 		fmt.Printf("Failed to create migrator: %v\n", err)
 		os.Exit(1)
 	}
-	defer m.Close()
+	defer func() { _ = m.Close() }()
 
 	if err := m.Up(); err != nil {
 		fmt.Printf("Migration failed: %v\n", err)
@@ -173,7 +174,7 @@ func runDown(dbURL, migrationsPath string) {
 		fmt.Printf("Failed to create migrator: %v\n", err)
 		os.Exit(1)
 	}
-	defer m.Close()
+	defer func() { _ = m.Close() }()
 
 	if err := m.Down(); err != nil {
 		fmt.Printf("Rollback failed: %v\n", err)
@@ -194,7 +195,7 @@ func runRollback(dbURL, migrationsPath string) {
 		fmt.Printf("Failed to create migrator: %v\n", err)
 		os.Exit(1)
 	}
-	defer m.Close()
+	defer func() { _ = m.Close() }()
 
 	if err := m.Rollback(); err != nil {
 		fmt.Printf("Rollback failed: %v\n", err)
@@ -214,7 +215,7 @@ func runStatus(dbURL, migrationsPath string) {
 		fmt.Printf("Failed to create migrator: %v\n", err)
 		os.Exit(1)
 	}
-	defer m.Close()
+	defer func() { _ = m.Close() }()
 
 	version, dirty, err := m.Version()
 	if err != nil {
@@ -239,7 +240,7 @@ func runForce(dbURL, migrationsPath string, version int) {
 		fmt.Printf("Failed to create migrator: %v\n", err)
 		os.Exit(1)
 	}
-	defer m.Close()
+	defer func() { _ = m.Close() }()
 
 	if err := m.Force(version); err != nil {
 		fmt.Printf("Force failed: %v\n", err)
@@ -332,7 +333,7 @@ func runFresh(dbURL, migrationsPath string, cfg *config.Config) {
 	}
 
 	_ = m.Down() // Ignore error if no migrations
-	m.Close()
+	_ = m.Close()
 
 	// Then run migrations
 	runMigrate(dbURL, migrationsPath)

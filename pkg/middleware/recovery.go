@@ -18,7 +18,7 @@ func RecoveryMiddleware(logger *zap.Logger) fiber.Handler {
 					zap.String("method", c.Method()),
 				)
 
-				c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				_ = c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 					"success": false,
 					"error": fiber.Map{
 						"code":    500,

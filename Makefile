@@ -1,4 +1,8 @@
-.PHONY: proto build build-worker run run-worker infisical-run infisical-run-worker test docker clean deps migrate lint migrate-up migrate-down migrate-rollback migrate-status migrate-create seed fresh refresh reset release
+.PHONY: proto build build-worker run run-worker infisical-run infisical-run-worker \
+	test test-coverage docker docker-run clean deps dev fmt lint install-tools \
+	migrate migrate-up migrate-down migrate-rollback migrate-status migrate-create \
+	seed fresh fresh-seed refresh refresh-seed reset \
+	compose-up compose-down release release-rc release-delete help
 
 # Application
 APP_NAME=go-grst-boilerplate
@@ -67,13 +71,13 @@ dev:
 
 # Run tests
 test:
-	@echo "Running tests..."
-	$(GOTEST) -v -cover ./...
+	@echo "Running tests (with race detector)..."
+	$(GOTEST) -race -count=1 -cover ./...
 
 # Run tests with coverage report
 test-coverage:
 	@echo "Running tests with coverage..."
-	$(GOTEST) -v -coverprofile=coverage.out ./...
+	$(GOTEST) -race -count=1 -covermode=atomic -coverprofile=coverage.out ./...
 	$(GOCMD) tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 
