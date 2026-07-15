@@ -1,3 +1,4 @@
+// Package docs serves the OpenAPI specification and API docs UI.
 package docs
 
 import (

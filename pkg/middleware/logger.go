@@ -16,10 +16,22 @@ func LoggerMiddleware(logger *zap.Logger) fiber.Handler {
 
 		duration := time.Since(start)
 
+		// When a handler returns an error, Fiber's app-level ErrorHandler runs
+		// AFTER this middleware, so c.Response().StatusCode() is still the
+		// default here. Derive the real status from the error instead.
+		status := c.Response().StatusCode()
+		if err != nil {
+			if fe, ok := err.(*fiber.Error); ok {
+				status = fe.Code
+			} else if status < 400 {
+				status = fiber.StatusInternalServerError
+			}
+		}
+
 		fields := []zap.Field{
 			zap.String("method", c.Method()),
 			zap.String("path", c.Path()),
-			zap.Int("status", c.Response().StatusCode()),
+			zap.Int("status", status),
 			zap.Duration("duration", duration),
 			zap.String("ip", c.IP()),
 			zap.String("user_agent", c.Get("User-Agent")),
@@ -37,14 +49,15 @@ func LoggerMiddleware(logger *zap.Logger) fiber.Handler {
 			)
 		}
 
-		if err != nil {
+		switch {
+		case err != nil:
 			fields = append(fields, zap.Error(err))
-			logger.Warn("Request failed", fields...)
-		} else if c.Response().StatusCode() >= 500 {
+			logger.Error("Request failed", fields...)
+		case status >= 500:
 			logger.Error("Request completed with server error", fields...)
-		} else if c.Response().StatusCode() >= 400 {
+		case status >= 400:
 			logger.Warn("Request completed with client error", fields...)
-		} else {
+		default:
 			logger.Info("Request completed", fields...)
 		}
 

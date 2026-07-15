@@ -1,3 +1,4 @@
+// Package redis wraps a Redigo connection pool with tracing helpers.
 package redis
 
 import (
@@ -19,17 +20,35 @@ type Client struct {
 }
 
 type Config struct {
-	Host        string
-	Port        int
-	Password    string
-	DB          int
-	MaxIdle     int
-	MaxActive   int
-	IdleTimeout int // seconds
+	Host         string
+	Port         int
+	Password     string
+	DB           int
+	MaxIdle      int
+	MaxActive    int
+	IdleTimeout  int // seconds
+	DialTimeout  int // seconds
+	ReadTimeout  int // seconds
+	WriteTimeout int // seconds
+}
+
+// durationOrDefault converts a seconds value to a Duration, falling back to def
+// when seconds is non-positive so a timeout is always applied.
+func durationOrDefault(seconds int, def time.Duration) time.Duration {
+	if seconds <= 0 {
+		return def
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 func New(cfg Config) (*Client, error) {
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
+
+	// Sensible non-zero fallbacks so a hung Redis can never block a caller
+	// indefinitely, even if a config value is omitted.
+	dialTimeout := durationOrDefault(cfg.DialTimeout, 5*time.Second)
+	readTimeout := durationOrDefault(cfg.ReadTimeout, 3*time.Second)
+	writeTimeout := durationOrDefault(cfg.WriteTimeout, 3*time.Second)
 
 	pool := &redis.Pool{
 		MaxIdle:     cfg.MaxIdle,
@@ -37,7 +56,11 @@ func New(cfg Config) (*Client, error) {
 		IdleTimeout: time.Duration(cfg.IdleTimeout) * time.Second,
 		Wait:        true,
 		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", addr)
+			c, err := redis.Dial("tcp", addr,
+				redis.DialConnectTimeout(dialTimeout),
+				redis.DialReadTimeout(readTimeout),
+				redis.DialWriteTimeout(writeTimeout),
+			)
 			if err != nil {
 				return nil, err
 			}

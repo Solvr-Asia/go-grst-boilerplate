@@ -1,3 +1,4 @@
+// Package errors defines typed application errors with HTTP/gRPC mappings.
 package errors
 
 import (
@@ -79,6 +80,10 @@ func NotFound(message string) *AppError {
 
 func Conflict(code int, message string) *AppError {
 	return New(http.StatusConflict, codes.AlreadyExists, code, message)
+}
+
+func TooManyRequests(message string) *AppError {
+	return New(http.StatusTooManyRequests, codes.ResourceExhausted, 429, message)
 }
 
 func Internal(code int, message string) *AppError {

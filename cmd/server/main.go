@@ -1,3 +1,4 @@
+// Command server runs the HTTP + gRPC API server.
 package main
 
 import (
@@ -12,6 +13,7 @@ import (
 	"go-grst-boilerplate/config"
 
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -21,12 +23,18 @@ func main() {
 		panic(fmt.Sprintf("Failed to load config: %v", err))
 	}
 
+	// Fail fast on insecure/invalid security config (e.g. a missing or
+	// placeholder JWT_SECRET) before anything starts serving traffic.
+	if err := cfg.Validate(); err != nil {
+		panic(fmt.Sprintf("Invalid configuration: %v", err))
+	}
+
 	// Initialize logger
 	log, err := config.NewLogger(cfg)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to initialize logger: %v", err))
 	}
-	defer log.Sync()
+	defer func() { _ = log.Sync() }()
 
 	log.Info("Starting application",
 		zap.String("service", cfg.ServiceName),
@@ -42,7 +50,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to initialize telemetry", zap.Error(err))
 	}
-	defer otel.Shutdown(ctx)
+	defer func() { _ = otel.Shutdown(ctx) }()
 
 	log.Info("OpenTelemetry initialized",
 		zap.Bool("enabled", cfg.OTelEnabled),
@@ -60,7 +68,7 @@ func main() {
 	if err != nil {
 		log.Warn("Failed to connect to Redis, caching disabled", zap.Error(err))
 	} else {
-		defer redisClient.Close()
+		defer func() { _ = redisClient.Close() }()
 		log.Info("Redis connection established",
 			zap.String("host", cfg.RedisHost),
 			zap.Int("port", cfg.RedisPort),
@@ -72,7 +80,7 @@ func main() {
 	if err != nil {
 		log.Warn("Failed to connect to RabbitMQ, messaging disabled", zap.Error(err))
 	} else {
-		defer rabbitClient.Close()
+		defer func() { _ = rabbitClient.Close() }()
 		log.Info("RabbitMQ connection established",
 			zap.String("host", cfg.RabbitMQHost),
 			zap.Int("port", cfg.RabbitMQPort),
@@ -83,7 +91,7 @@ func main() {
 	app := config.NewFiber(cfg, log.Logger)
 
 	// Bootstrap application (wire layers, routes, health checks)
-	result := config.Bootstrap(&config.BootstrapConfig{
+	result, err := config.Bootstrap(&config.BootstrapConfig{
 		DB:       db,
 		App:      app,
 		Log:      log.Logger,
@@ -91,6 +99,9 @@ func main() {
 		Redis:    redisClient,
 		RabbitMQ: rabbitClient,
 	})
+	if err != nil {
+		log.Fatal("Failed to bootstrap application", zap.Error(err))
+	}
 
 	// Start servers
 	errChan := make(chan error, 2)
@@ -102,7 +113,7 @@ func main() {
 			return
 		}
 		log.Info("gRPC server listening", zap.Int("port", cfg.GRPCPort))
-		if err := result.GRPCServer.Serve(lis); err != nil {
+		if err := result.GRPCServer.Serve(lis); err != nil && err != grpc.ErrServerStopped {
 			errChan <- fmt.Errorf("gRPC serve error: %w", err)
 		}
 	}()
@@ -110,28 +121,57 @@ func main() {
 	go func() {
 		log.Info("HTTP server listening", zap.Int("port", cfg.HTTPPort))
 		if err := app.Listen(fmt.Sprintf(":%d", cfg.HTTPPort)); err != nil {
-			errChan <- fmt.Errorf("Fiber listen error: %w", err)
+			errChan <- fmt.Errorf("fiber listen error: %w", err)
 		}
 	}()
 
-	// Wait for interrupt signal
+	// Wait for a shutdown signal or a fatal server error. Both paths fall
+	// through to the same graceful shutdown so deferred cleanup (telemetry
+	// flush, Redis/RabbitMQ close, log sync) always runs — we never os.Exit here.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
+	exitCode := 0
 	select {
 	case <-quit:
-		log.Info("Shutting down servers...")
-
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
-		result.GRPCServer.GracefulStop()
-		if err := app.ShutdownWithContext(shutdownCtx); err != nil {
-			log.Error("Fiber shutdown error", zap.Error(err))
-		}
-
-		log.Info("Servers stopped gracefully")
+		log.Info("Shutdown signal received; draining servers...")
 	case err := <-errChan:
-		log.Fatal("Server error", zap.Error(err))
+		log.Error("Server error; shutting down", zap.Error(err))
+		exitCode = 1
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// 1. Drain HTTP: stop accepting new connections, let in-flight requests finish.
+	if err := app.ShutdownWithContext(shutdownCtx); err != nil {
+		log.Error("Fiber shutdown error", zap.Error(err))
+	}
+
+	// 2. Stop gRPC gracefully, bounded by the shutdown deadline; force-stop on timeout.
+	grpcStopped := make(chan struct{})
+	go func() {
+		result.GRPCServer.GracefulStop()
+		close(grpcStopped)
+	}()
+	select {
+	case <-grpcStopped:
+	case <-shutdownCtx.Done():
+		log.Warn("gRPC graceful stop timed out; forcing stop")
+		result.GRPCServer.Stop()
+	}
+
+	// 3. Close the database connection pool.
+	if sqlDB, err := db.DB(); err == nil {
+		_ = sqlDB.Close()
+	}
+
+	log.Info("Servers stopped gracefully")
+
+	// Flush deferred cleanup (see defers above) before exiting non-zero.
+	if exitCode != 0 {
+		_ = log.Sync()
+		_ = otel.Shutdown(context.Background())
+		os.Exit(exitCode)
 	}
 }

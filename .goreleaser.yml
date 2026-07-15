@@ -1,4 +1,4 @@
-version: 1
+version: 2
 
 before:
   hooks:
@@ -7,7 +7,7 @@ before:
 
 builds:
   - id: server
-    main: ./main.go
+    main: ./cmd/server
     binary: server
     env:
       - CGO_ENABLED=0
@@ -25,8 +25,23 @@ builds:
       - -X main.date={{.Date}}
 
   - id: migrate
-    main: ./cmd/migrate/main.go
+    main: ./cmd/migrate
     binary: migrate
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+  - id: worker
+    main: ./cmd/worker
+    binary: worker
     env:
       - CGO_ENABLED=0
     goos:

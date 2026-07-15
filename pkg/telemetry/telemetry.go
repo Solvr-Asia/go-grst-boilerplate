@@ -1,3 +1,4 @@
+// Package telemetry configures OpenTelemetry tracing.
 package telemetry
 
 import (
@@ -13,15 +14,14 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Config struct {
 	ServiceName  string
 	Environment  string
 	Endpoint     string
-	ExporterType string // "otlp" or "stdout"
+	ExporterType string  // "otlp", "stdout", or "noop"
+	SampleRatio  float64 // 0.0-1.0 (parent-based ratio sampler)
 	Enabled      bool
 }
 
@@ -31,7 +31,10 @@ type Telemetry struct {
 }
 
 func New(ctx context.Context, cfg Config) (*Telemetry, error) {
-	if !cfg.Enabled {
+	// Disabled, or an explicit no-op exporter: install a tracer that records
+	// nothing and never touches the network. Previously "noop" silently fell
+	// through to the stdout exporter.
+	if !cfg.Enabled || cfg.ExporterType == "noop" {
 		return &Telemetry{
 			tracer: otel.Tracer(cfg.ServiceName),
 		}, nil
@@ -52,34 +55,34 @@ func New(ctx context.Context, cfg Config) (*Telemetry, error) {
 
 	switch cfg.ExporterType {
 	case "otlp":
-		conn, err := grpc.DialContext(ctx, cfg.Endpoint,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
+		// Non-blocking: the exporter connects lazily, so an unreachable
+		// collector no longer hangs startup (previously grpc.WithBlock did).
+		exporter, err = otlptracegrpc.New(ctx,
+			otlptracegrpc.WithEndpoint(cfg.Endpoint),
+			otlptracegrpc.WithInsecure(),
 		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create gRPC connection: %w", err)
-		}
-
-		exporter, err = otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create OTLP exporter: %w", err)
 		}
-	case "stdout":
-		exporter, err = stdouttrace.New(stdouttrace.WithPrettyPrint())
-		if err != nil {
-			return nil, fmt.Errorf("failed to create stdout exporter: %w", err)
-		}
-	default:
+	default: // "stdout" and any unknown value
 		exporter, err = stdouttrace.New(stdouttrace.WithPrettyPrint())
 		if err != nil {
 			return nil, fmt.Errorf("failed to create stdout exporter: %w", err)
 		}
 	}
 
+	// Parent-based ratio sampler: honor the incoming sampling decision, and for
+	// roots sample at the configured ratio (default 1.0 = always).
+	ratio := cfg.SampleRatio
+	if ratio <= 0 {
+		ratio = 1.0
+	}
+	sampler := sdktrace.ParentBased(sdktrace.TraceIDRatioBased(ratio))
+
 	provider := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(res),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSampler(sampler),
 	)
 
 	otel.SetTracerProvider(provider)

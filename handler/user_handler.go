@@ -1,3 +1,4 @@
+// Package handler implements the gRPC/HTTP request handlers.
 package handler
 
 import (
@@ -6,10 +7,14 @@ import (
 
 	"go-grst-boilerplate/app/usecase/user"
 	pb "go-grst-boilerplate/handler/grpc/user"
+	"go-grst-boilerplate/pkg/authguard"
 	"go-grst-boilerplate/pkg/errors"
+	"go-grst-boilerplate/pkg/metrics"
 	"go-grst-boilerplate/pkg/middleware"
 	"go-grst-boilerplate/pkg/token"
 
+	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -17,13 +22,31 @@ type userHandler struct {
 	pb.UnimplementedUserApiServer
 	userUC       user.UseCase
 	tokenService *token.TokenService
+	guard        *authguard.Guard
+	logger       *zap.Logger
 }
 
-func NewUserHandler(userUC user.UseCase, tokenService *token.TokenService) pb.UserApiServer {
+func NewUserHandler(userUC user.UseCase, tokenService *token.TokenService, guard *authguard.Guard, logger *zap.Logger) pb.UserApiServer {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
 	return &userHandler{
 		userUC:       userUC,
 		tokenService: tokenService,
+		guard:        guard,
+		logger:       logger,
 	}
+}
+
+// internal logs the underlying cause of a 5xx (which is never sent to clients)
+// and returns a sanitized error carrying only a stable code and public message.
+func (h *userHandler) internal(code int, publicMsg string, cause error) error {
+	h.logger.Error("internal handler error",
+		zap.Int("code", code),
+		zap.String("message", publicMsg),
+		zap.Error(cause),
+	)
+	return errors.Internal(code, publicMsg)
 }
 
 // Register creates a new user account.
@@ -42,7 +65,11 @@ func (h *userHandler) Register(ctx context.Context, req *pb.RegisterReq) (*pb.Re
 		if err == user.ErrEmailExists {
 			return nil, errors.Conflict(40901, "email already registered")
 		}
-		return nil, errors.Internal(50001, "failed to register user")
+		return nil, h.internal(50001, "failed to register user", err)
+	}
+
+	if m := metrics.Get(); m != nil {
+		m.RecordUserRegistered()
 	}
 
 	return &pb.RegisterRes{
@@ -58,12 +85,29 @@ func (h *userHandler) Login(ctx context.Context, req *pb.LoginReq) (*pb.LoginRes
 		return nil, err
 	}
 
+	// Reject early if the account is locked out from repeated failures.
+	if h.guard.IsLocked(ctx, req.Email) {
+		return nil, errors.TooManyRequests("too many failed login attempts; try again later")
+	}
+
 	userEntity, err := h.userUC.Login(ctx, req.Email, req.Password)
 	if err != nil {
-		if err == user.ErrInvalidCreds {
+		switch {
+		case err == user.ErrInvalidCreds:
+			h.guard.RecordFailure(ctx, req.Email)
 			return nil, errors.Unauthorized("invalid email or password")
+		case err == user.ErrUserNotActive:
+			return nil, errors.Forbidden("account is not active")
+		default:
+			return nil, h.internal(50002, "failed to login", err)
 		}
-		return nil, errors.Internal(50002, "failed to login")
+	}
+
+	// Successful login clears any accumulated failure/lock state.
+	h.guard.Reset(ctx, req.Email)
+
+	if m := metrics.Get(); m != nil {
+		m.RecordUserLogin()
 	}
 
 	// Generate PASETO token
@@ -74,7 +118,7 @@ func (h *userHandler) Login(ctx context.Context, req *pb.LoginReq) (*pb.LoginRes
 		userEntity.CompanyCode,
 	)
 	if err != nil {
-		return nil, errors.Internal(50003, "failed to generate token")
+		return nil, h.internal(50003, "failed to generate token", err)
 	}
 
 	return &pb.LoginRes{
@@ -90,22 +134,43 @@ func (h *userHandler) Login(ctx context.Context, req *pb.LoginReq) (*pb.LoginRes
 	}, nil
 }
 
-// RefreshToken re-issues a new PASETO token from a valid existing token.
+// RefreshToken rotates a valid token: it reloads the user from the database so
+// role/status changes take effect, revokes the presented token, and issues a
+// new one. Note: because the refresh route itself requires a non-expired token,
+// this cannot refresh an already-expired token — a separate long-lived refresh
+// token (a proto change) would be needed for that.
 func (h *userHandler) RefreshToken(ctx context.Context, req *pb.RefreshTokenReq) (*pb.RefreshTokenRes, error) {
 	authCtx := getAuthFromContext(ctx)
 	if authCtx == nil {
 		return nil, errors.Unauthorized("authentication required")
 	}
 
-	// Re-issue a new token with the same claims
+	// Reload the user so a deactivated or deleted account cannot keep
+	// refreshing, and so fresh roles are embedded in the new token.
+	profile, err := h.userUC.GetProfile(ctx, authCtx.UserID)
+	if err != nil {
+		if err == user.ErrNotFound {
+			return nil, errors.Unauthorized("user no longer exists")
+		}
+		return nil, h.internal(50010, "failed to refresh token", err)
+	}
+	if string(profile.Status) != "active" {
+		return nil, errors.Forbidden("account is not active")
+	}
+
+	// Rotate: revoke the presented token so it cannot be reused.
+	if authCtx.TokenID != "" {
+		_ = h.guard.Revoke(ctx, authCtx.TokenID, time.Until(authCtx.ExpiresAt))
+	}
+
 	newToken, err := h.tokenService.GenerateToken(
-		authCtx.UserID,
-		authCtx.Email,
-		authCtx.Roles,
-		authCtx.CompanyCode,
+		profile.ID,
+		profile.Email,
+		profile.Roles,
+		profile.CompanyCode,
 	)
 	if err != nil {
-		return nil, errors.Internal(50010, "failed to refresh token")
+		return nil, h.internal(50010, "failed to refresh token", err)
 	}
 
 	return &pb.RefreshTokenRes{
@@ -125,7 +190,7 @@ func (h *userHandler) GetMe(ctx context.Context, req *emptypb.Empty) (*pb.UserPr
 		if err == user.ErrNotFound {
 			return nil, errors.NotFound("user not found")
 		}
-		return nil, errors.Internal(50004, "failed to get profile")
+		return nil, h.internal(50004, "failed to get profile", err)
 	}
 
 	return &pb.UserProfile{
@@ -138,15 +203,19 @@ func (h *userHandler) GetMe(ctx context.Context, req *emptypb.Empty) (*pb.UserPr
 	}, nil
 }
 
-// Logout invalidates the current session (stateless — returns success).
+// Logout revokes the presented token so it can no longer be used, even before
+// its natural expiry. Requires a Redis-backed guard; without Redis it degrades
+// to a client-side-only logout.
 func (h *userHandler) Logout(ctx context.Context, req *emptypb.Empty) (*pb.LogoutRes, error) {
 	authCtx := getAuthFromContext(ctx)
 	if authCtx == nil {
 		return nil, errors.Unauthorized("authentication required")
 	}
 
-	// Stateless logout — token is not blacklisted.
-	// Client should discard the token on their side.
+	if authCtx.TokenID != "" {
+		_ = h.guard.Revoke(ctx, authCtx.TokenID, time.Until(authCtx.ExpiresAt))
+	}
+
 	return &pb.LogoutRes{
 		Message: "successfully logged out",
 	}, nil
@@ -166,7 +235,7 @@ func (h *userHandler) ListUsers(ctx context.Context, req *pb.ListUsersReq) (*pb.
 		SortOrder: req.SortOrder,
 	})
 	if err != nil {
-		return nil, errors.Internal(50005, "failed to list users")
+		return nil, h.internal(50005, "failed to list users", err)
 	}
 
 	pbUsers := make([]*pb.UserProfile, len(users))
@@ -196,12 +265,16 @@ func (h *userHandler) ListUsers(ctx context.Context, req *pb.ListUsersReq) (*pb.
 
 // GetUser returns a single user by ID (admin only).
 func (h *userHandler) GetUser(ctx context.Context, req *pb.GetUserReq) (*pb.UserProfile, error) {
+	if err := validateUserID(req.Id); err != nil {
+		return nil, err
+	}
+
 	userEntity, err := h.userUC.GetUser(ctx, req.Id)
 	if err != nil {
 		if err == user.ErrNotFound {
 			return nil, errors.NotFound("user not found")
 		}
-		return nil, errors.Internal(50006, "failed to get user")
+		return nil, h.internal(50006, "failed to get user", err)
 	}
 
 	return &pb.UserProfile{
@@ -216,6 +289,9 @@ func (h *userHandler) GetUser(ctx context.Context, req *pb.GetUserReq) (*pb.User
 
 // UpdateUser updates a user by ID (admin only).
 func (h *userHandler) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*pb.UserProfile, error) {
+	if err := validateUserID(req.Id); err != nil {
+		return nil, err
+	}
 	if err := pb.ValidateRequest(req); err != nil {
 		return nil, err
 	}
@@ -229,7 +305,7 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*p
 		if err == user.ErrNotFound {
 			return nil, errors.NotFound("user not found")
 		}
-		return nil, errors.Internal(50007, "failed to update user")
+		return nil, h.internal(50007, "failed to update user", err)
 	}
 
 	return &pb.UserProfile{
@@ -244,12 +320,16 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*p
 
 // DeleteUser soft-deletes a user by ID (admin only).
 func (h *userHandler) DeleteUser(ctx context.Context, req *pb.DeleteUserReq) (*pb.DeleteUserRes, error) {
+	if err := validateUserID(req.Id); err != nil {
+		return nil, err
+	}
+
 	err := h.userUC.DeleteUser(ctx, req.Id)
 	if err != nil {
 		if err == user.ErrNotFound {
 			return nil, errors.NotFound("user not found")
 		}
-		return nil, errors.Internal(50008, "failed to delete user")
+		return nil, h.internal(50008, "failed to delete user", err)
 	}
 
 	return &pb.DeleteUserRes{
@@ -258,8 +338,15 @@ func (h *userHandler) DeleteUser(ctx context.Context, req *pb.DeleteUserReq) (*p
 }
 
 func getAuthFromContext(ctx context.Context) *middleware.AuthContext {
-	if auth, ok := ctx.Value("auth").(*middleware.AuthContext); ok {
-		return auth
+	a, _ := middleware.AuthFromContext(ctx)
+	return a
+}
+
+// validateUserID rejects malformed identifiers before they reach the database,
+// where an invalid UUID would surface as a 500 instead of a 400.
+func validateUserID(id string) error {
+	if _, err := uuid.Parse(id); err != nil {
+		return errors.BadRequest(40002, "invalid user id")
 	}
 	return nil
 }

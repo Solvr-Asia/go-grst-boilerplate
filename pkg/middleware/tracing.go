@@ -2,8 +2,10 @@ package middleware
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/utils"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 	"go.opentelemetry.io/otel/trace"
@@ -13,47 +15,62 @@ var tracer = otel.Tracer("fiber-middleware")
 
 func TracingMiddleware(serviceName string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Extract trace context from incoming request headers
+		// Extract trace context from incoming request headers.
 		propagator := otel.GetTextMapPropagator()
 		ctx := propagator.Extract(c.UserContext(), propagation.HeaderCarrier(c.GetReqHeaders()))
 
-		// Start a new span
-		spanName := c.Method() + " " + c.Path()
-		ctx, span := tracer.Start(ctx, spanName,
+		// Fiber/fasthttp return zero-copy strings backed by the request buffer,
+		// which is reused after the handler returns. Spans are exported
+		// asynchronously (batched), so every string stored on a span MUST be
+		// copied or it may be read after the buffer is recycled — a data race.
+		method := utils.CopyString(c.Method())
+		routePath := utils.CopyString(c.Route().Path)
+		if routePath == "" {
+			routePath = utils.CopyString(c.Path())
+		}
+		originalURL := utils.CopyString(c.OriginalURL())
+		hostname := utils.CopyString(c.Hostname())
+		userAgent := utils.CopyString(c.Get("User-Agent"))
+		clientIP := utils.CopyString(c.IP())
+
+		// Use the low-cardinality route pattern (e.g. /api/v1/users/:id) as the
+		// span name, not the raw path with IDs, to avoid metric/label explosion.
+		ctx, span := tracer.Start(ctx, method+" "+routePath,
 			trace.WithSpanKind(trace.SpanKindServer),
 			trace.WithAttributes(
-				semconv.HTTPMethodKey.String(c.Method()),
-				semconv.HTTPURLKey.String(c.OriginalURL()),
-				semconv.HTTPRouteKey.String(c.Route().Path),
-				semconv.NetHostNameKey.String(c.Hostname()),
-				semconv.UserAgentOriginalKey.String(c.Get("User-Agent")),
-				attribute.String("http.client_ip", c.IP()),
+				semconv.HTTPMethodKey.String(method),
+				semconv.HTTPURLKey.String(originalURL),
+				semconv.HTTPRouteKey.String(routePath),
+				semconv.NetHostNameKey.String(hostname),
+				semconv.UserAgentOriginalKey.String(userAgent),
+				attribute.String("http.client_ip", clientIP),
 			),
 		)
 		defer span.End()
 
-		// Store trace context in Fiber context
+		// Correlate the request ID (set by RequestIDMiddleware, which runs first)
+		// with the trace.
+		if reqID, ok := c.Locals("request_id").(string); ok && reqID != "" {
+			span.SetAttributes(attribute.String("request.id", reqID))
+		}
+
 		c.SetUserContext(ctx)
 
-		// Add trace ID to response headers
 		if span.SpanContext().IsValid() {
 			c.Set("X-Trace-ID", span.SpanContext().TraceID().String())
 		}
 
-		// Process request
 		err := c.Next()
 
-		// Set status code attribute
 		statusCode := c.Response().StatusCode()
 		span.SetAttributes(semconv.HTTPStatusCodeKey.Int(statusCode))
 
-		// Mark span as error if status >= 400
-		if statusCode >= 400 {
-			span.SetAttributes(attribute.Bool("error", true))
-		}
-
+		// Record standard span error status so tracing backends surface failures.
 		if err != nil {
 			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		} else if statusCode >= 500 {
+			span.SetStatus(codes.Error, "server error")
 		}
 
 		return err

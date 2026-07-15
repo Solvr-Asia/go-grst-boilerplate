@@ -1,3 +1,4 @@
+// Package metrics defines Prometheus metrics and HTTP instrumentation.
 package metrics
 
 import (
@@ -7,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -49,8 +51,8 @@ func New(namespace string) *Metrics {
 	registry := prometheus.NewRegistry()
 
 	// Register default collectors
-	registry.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
-	registry.MustRegister(prometheus.NewGoCollector())
+	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	registry.MustRegister(collectors.NewGoCollector())
 
 	m := &Metrics{
 		registry: registry,
@@ -216,11 +218,26 @@ func (m *Metrics) Middleware() fiber.Handler {
 		// Process request
 		err := c.Next()
 
+		// Derive the true status: on a handler error, Fiber's ErrorHandler runs
+		// after this middleware, so c.Response().StatusCode() is still the
+		// default here.
+		statusCode := c.Response().StatusCode()
+		if err != nil {
+			if fe, ok := err.(*fiber.Error); ok {
+				statusCode = fe.Code
+			} else if statusCode < 400 {
+				statusCode = fiber.StatusInternalServerError
+			}
+		}
+
 		// Record metrics
 		duration := time.Since(start).Seconds()
-		status := strconv.Itoa(c.Response().StatusCode())
+		status := strconv.Itoa(statusCode)
 		method := c.Method()
-		path := c.Route().Path // Use route path for better grouping
+		path := c.Route().Path // route pattern, not raw path — bounds label cardinality
+		if path == "" {
+			path = "unmatched"
+		}
 
 		m.httpRequestsTotal.WithLabelValues(method, path, status).Inc()
 		m.httpRequestDuration.WithLabelValues(method, path, status).Observe(duration)

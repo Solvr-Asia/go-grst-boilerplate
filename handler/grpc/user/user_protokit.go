@@ -1,3 +1,4 @@
+// Package user contains the gRPC user service contract and validation.
 package user
 
 import (
@@ -34,8 +35,10 @@ var RouteAuthConfig = map[string]middleware.AuthConfig{
 // Request DTOs with validation tags
 
 type RegisterRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8,max=128"`
+	Email string `json:"email" validate:"required,email"`
+	// max=72: bcrypt ignores bytes beyond 72, so a longer password would be
+	// silently truncated. `password`: enforces upper+lower+digit complexity.
+	Password string `json:"password" validate:"required,min=8,max=72,password"`
 	Name     string `json:"name" validate:"required,min=2,max=100"`
 	Phone    string `json:"phone" validate:"omitempty,phone"`
 }

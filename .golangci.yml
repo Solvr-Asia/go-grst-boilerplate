@@ -1,142 +1,63 @@
+# golangci-lint v2 configuration.
+version: "2"
+
 run:
   timeout: 5m
-  issues-exit-code: 1
   tests: true
-  skip-dirs:
-    - vendor
-    - tmp
-    - bin
-
-output:
-  format: colored-line-number
-  print-issued-lines: true
-  print-linter-name: true
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-
-  govet:
-    check-shadowing: true
-    enable-all: true
-
-  gocyclo:
-    min-complexity: 15
-
-  dupl:
-    threshold: 150
-
-  goconst:
-    min-len: 3
-    min-occurrences: 3
-
-  misspell:
-    locale: US
-
-  lll:
-    line-length: 140
-    tab-width: 4
-
-  goimports:
-    local-prefixes: go-grst-boilerplate
-
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-    disabled-checks:
-      - dupImport
-      - ifElseChain
-      - octalLiteral
-      - whyNoLint
-      - wrapperFunc
-
-  funlen:
-    lines: 100
-    statements: 50
-
-  gofumpt:
-    extra-rules: true
 
 linters:
-  disable-all: true
+  # Start from the standard set (errcheck, govet, ineffassign, staticcheck,
+  # unused) and add high-signal, low-false-positive checks.
+  default: standard
   enable:
-    # Default linters
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - typecheck
-    - unused
-
-    # Additional linters
     - bodyclose
-    - dogsled
-    - dupl
-    - exportloopref
-    - funlen
-    - gochecknoinits
-    - goconst
-    - gocritic
-    - gocyclo
+    - gosec
+    - misspell
+    - unconvert
+    - whitespace
+  settings:
+    misspell:
+      locale: US
+    staticcheck:
+      # Disable "quickfix" style suggestions (QF*) — advisory, not bugs — and
+      # ST1003 (underscore package names): the project intentionally uses names
+      # like user_repository for clarity (see CLAUDE.md).
+      checks:
+        - all
+        - -QF1002
+        - -QF1008
+        - -ST1003
+    errcheck:
+      # Best-effort cleanup (deferred Close/Sync) is intentionally unchecked.
+      exclude-functions:
+        - (io.Closer).Close
+        - (*go.uber.org/zap.Logger).Sync
+    gosec:
+      excludes:
+        - G104 # unhandled errors — already covered by errcheck
+        - G703 # path-traversal false positives on fixed internal paths
+  exclusions:
+    generated: lax
+    rules:
+      # Generated protobuf code is not ours to lint.
+      - path: \.pb\.go
+        linters:
+          - errcheck
+          - gosec
+          - staticcheck
+          - unused
+      # Tests may be looser.
+      - path: _test\.go
+        linters:
+          - bodyclose
+          - errcheck
+          - gosec
+
+formatters:
+  enable:
     - gofmt
     - goimports
-    - goprintffuncname
-    - gosec
-    - lll
-    - misspell
-    - nakedret
-    - noctx
-    - nolintlint
-    - prealloc
-    - revive
-    - rowserrcheck
-    - stylecheck
-    - unconvert
-    - unparam
-    - whitespace
-
-issues:
-  exclude-rules:
-    # Exclude some linters from running on tests files
-    - path: _test\.go
-      linters:
-        - dupl
-        - funlen
-        - goconst
-        - gosec
-
-    # Exclude known issues in generated files
-    - path: \.pb\.go
-      linters:
-        - all
-
-    # Exclude shadow checking on err variable
-    - text: "shadow: declaration of \"err\""
-      linters:
-        - govet
-
-    # Allow longer lines in certain files
-    - path: docs/
-      linters:
-        - lll
-
-  exclude-use-default: false
-  max-issues-per-linter: 0
-  max-same-issues: 0
-  new: false
-
-severity:
-  default-severity: error
-  rules:
-    - linters:
-        - dupl
-      severity: info
-    - linters:
-        - funlen
-      severity: warning
+  settings:
+    goimports:
+      local-prefixes:
+        - go-grst-boilerplate

@@ -1,3 +1,4 @@
+// Command worker consumes messages from RabbitMQ.
 package main
 
 import (
@@ -28,8 +29,8 @@ const (
 	DefaultRoutingKey = "default.#"
 
 	// Consumer configuration
-	ConsumerTag      = "worker-consumer"
-	PrefetchCount    = 10
+	ConsumerTag       = "worker-consumer"
+	PrefetchCount     = 10
 	ConcurrentWorkers = 5
 )
 
@@ -45,7 +46,7 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to initialize logger: %v", err))
 	}
-	defer log.Sync()
+	defer func() { _ = log.Sync() }()
 
 	log.Info("Starting worker",
 		zap.String("service", cfg.ServiceName+"-worker"),
@@ -58,7 +59,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to initialize telemetry", zap.Error(err))
 	}
-	defer otel.Shutdown(ctx)
+	defer func() { _ = otel.Shutdown(ctx) }()
 
 	log.Info("OpenTelemetry initialized",
 		zap.Bool("enabled", cfg.OTelEnabled),
@@ -77,7 +78,7 @@ func main() {
 	if err != nil {
 		log.Warn("Failed to connect to Redis, caching disabled", zap.Error(err))
 	} else {
-		defer redisClient.Close()
+		defer func() { _ = redisClient.Close() }()
 		log.Info("Redis connection established",
 			zap.String("host", cfg.RedisHost),
 			zap.Int("port", cfg.RedisPort),
@@ -89,7 +90,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to connect to RabbitMQ", zap.Error(err))
 	}
-	defer rabbitClient.Close()
+	defer func() { _ = rabbitClient.Close() }()
 	log.Info("RabbitMQ connection established",
 		zap.String("host", cfg.RabbitMQHost),
 		zap.Int("port", cfg.RabbitMQPort),
@@ -100,43 +101,31 @@ func main() {
 		log.Fatal("Failed to setup RabbitMQ topology", zap.Error(err))
 	}
 
-	// Set QoS
-	if err := rabbitClient.SetQoS(PrefetchCount, 0, false); err != nil {
-		log.Fatal("Failed to set QoS", zap.Error(err))
-	}
-
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start consumers
-	errChan := make(chan error, ConcurrentWorkers)
-
+	// Start consumers. Each consumer runs on its own channel, sets its own QoS,
+	// and self-heals across connection/channel drops.
 	for i := 0; i < ConcurrentWorkers; i++ {
 		workerID := i + 1
-		go func(id int) {
-			consumerTag := fmt.Sprintf("%s-%d", ConsumerTag, id)
-			log.Info("Starting consumer",
-				zap.Int("worker_id", id),
-				zap.String("consumer_tag", consumerTag),
-				zap.String("queue", DefaultQueue),
-			)
+		consumerTag := fmt.Sprintf("%s-%d", ConsumerTag, workerID)
+		log.Info("Starting consumer",
+			zap.Int("worker_id", workerID),
+			zap.String("consumer_tag", consumerTag),
+			zap.String("queue", DefaultQueue),
+		)
 
-			err := rabbitClient.ConsumeWithHandler(ctx, rabbitmq.ConsumeOptions{
-				Queue:       DefaultQueue,
-				ConsumerTag: consumerTag,
-				AutoAck:     false,
-				Exclusive:   false,
-				NoLocal:     false,
-				NoWait:      false,
-			}, func(handlerCtx context.Context, msg amqp.Delivery) error {
-				return handleMessage(handlerCtx, msg, log.Logger, db, redisClient)
-			})
-
-			if err != nil {
-				errChan <- fmt.Errorf("consumer %d error: %w", id, err)
-			}
-		}(workerID)
+		if err := rabbitClient.ConsumeWithHandler(ctx, rabbitmq.ConsumeOptions{
+			Queue:         DefaultQueue,
+			ConsumerTag:   consumerTag,
+			AutoAck:       false,
+			PrefetchCount: PrefetchCount,
+		}, func(handlerCtx context.Context, msg amqp.Delivery) error {
+			return handleMessage(handlerCtx, msg, log.Logger, db, redisClient)
+		}); err != nil {
+			log.Fatal("Failed to start consumer", zap.Int("worker_id", workerID), zap.Error(err))
+		}
 	}
 
 	log.Info("All consumers started",
@@ -148,20 +137,20 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
-	select {
-	case <-quit:
-		log.Info("Shutting down worker...")
-		cancel()
+	<-quit
+	log.Info("Shutting down worker...")
 
-		// Give consumers time to finish processing current messages
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer shutdownCancel()
+	// Stop consumers accepting new work, then wait (bounded) for in-flight
+	// messages to finish before closing the connection.
+	cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+	rabbitClient.WaitConsumers(shutdownCtx)
 
-		<-shutdownCtx.Done()
-		log.Info("Worker stopped gracefully")
-	case err := <-errChan:
-		log.Fatal("Consumer error", zap.Error(err))
+	if shutdownCtx.Err() != nil {
+		log.Warn("Shutdown timeout reached before all consumers drained")
 	}
+	log.Info("Worker stopped gracefully")
 }
 
 // setupTopology declares exchanges, queues, and bindings
@@ -231,12 +220,14 @@ func handleMessage(ctx context.Context, msg amqp.Delivery, log *zap.Logger, db i
 		zap.Int("body_size", len(msg.Body)),
 	)
 
-	// Parse message body
+	// Parse message body. Do NOT log the raw body or decoded payload — messages
+	// may contain PII or secrets. Log only non-sensitive metadata.
 	var payload map[string]interface{}
 	if err := json.Unmarshal(msg.Body, &payload); err != nil {
 		log.Error("Failed to unmarshal message",
 			zap.Error(err),
-			zap.String("body", string(msg.Body)),
+			zap.String("routing_key", msg.RoutingKey),
+			zap.Int("body_size", len(msg.Body)),
 		)
 		return fmt.Errorf("invalid message format: %w", err)
 	}
@@ -251,7 +242,7 @@ func handleMessage(ctx context.Context, msg amqp.Delivery, log *zap.Logger, db i
 
 	log.Info("Message processed successfully",
 		zap.String("routing_key", msg.RoutingKey),
-		zap.Any("payload", payload),
+		zap.Int("fields", len(payload)),
 	)
 
 	// Simulate processing time (remove this in production)

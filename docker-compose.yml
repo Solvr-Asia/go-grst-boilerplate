@@ -1,6 +1,24 @@
-version: '3.8'
-
 services:
+  # One-shot: apply SQL migrations before the app starts. golang-migrate is the
+  # source of truth (AutoMigrate is disabled by default).
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["/app/migrate", "up"]
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=go_grst_db
+      - DB_SSL_MODE=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   app:
     build:
       context: .
@@ -32,8 +50,9 @@ services:
       - RABBITMQ_USER=guest
       - RABBITMQ_PASSWORD=guest
       - RABBITMQ_VHOST=/
-      # JWT
-      - JWT_SECRET=your-secret-key-change-in-production
+      # JWT — DEV ONLY, 64-char hex (32 bytes). Generate a fresh one for any
+      # real deployment: openssl rand -hex 32
+      - JWT_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       - JWT_EXPIRATION=24
       # CORS
       - CORS_ORIGINS=*
@@ -52,6 +71,14 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
     networks:
       - app-network

@@ -48,20 +48,23 @@ A production-ready Go monolithic application boilerplate using **Go Fiber** for 
 ```
 go-grst-boilerplate/
 ├── cmd/
-│   ├── server/                 # Application entry point
+│   ├── server/                 # HTTP + gRPC API server entry point
 │   │   └── main.go
-│   └── migrate/                # Migration CLI tool
+│   ├── worker/                 # RabbitMQ consumer entry point
+│   │   └── main.go
+│   └── migrate/                # Migration + seeding CLI tool
 │       └── main.go
 ├── config/
-│   ├── config.go               # Viper configuration & Config struct
+│   ├── config.go               # Viper configuration, Config struct & Validate()
 │   ├── infisical.go            # Optional Infisical secret loading
 │   ├── bootstrap.go            # Dependency wiring (repos, usecases, routes)
-│   ├── fiber.go                # Fiber app, CORS, middleware, error handler
-│   ├── database.go             # Database init + auto-migrate
+│   ├── fiber.go                # Fiber app, CORS, helmet, middleware, error handler
+│   ├── database.go             # Database init (+ optional AutoMigrate)
 │   ├── logger.go               # Zap logger init
 │   ├── telemetry.go            # OpenTelemetry init
 │   ├── redis.go                # Redis client init
 │   └── rabbitmq.go             # RabbitMQ client init
+├── examples/                   # Runnable usage examples (PASETO auth flow)
 ├── migrations/                 # SQL migration files
 │   ├── 000001_create_users_table.up.sql
 │   ├── 000001_create_users_table.down.sql
@@ -75,7 +78,7 @@ go-grst-boilerplate/
 │   └── user.go
 ├── repository/                 # Data access layer
 │   └── user_repository/
-│       └── repository.go
+│       └── user_repository.go
 ├── app/                        # Business logic layer
 │   └── usecase/
 │       └── user/
@@ -87,20 +90,21 @@ go-grst-boilerplate/
 │   │       ├── user.pb.go      # Generated protobuf
 │   │       ├── user_grpc.pb.go # Generated gRPC service
 │   │       └── user_protokit.go
-│   └── http/
-│       └── user/
-│           └── user_routes.go
+│   ├── http/
+│   │   └── user/
+│   │       └── user_routes.go
+│   └── user_handler.go         # Shared gRPC/HTTP handler implementation
 ├── pkg/                        # Shared utilities
 │   ├── database/               # GORM setup
 │   ├── redis/                  # Redigo client
-│   ├── rabbitmq/               # RabbitMQ client
+│   ├── rabbitmq/               # Auto-reconnecting RabbitMQ client
 │   ├── logger/                 # Zap logger
 │   ├── telemetry/              # OpenTelemetry setup
-│   ├── token/                  # PASETO token service
-│   ├── jwt/                    # Legacy JWT service/tests
+│   ├── token/                  # PASETO token service (revocable jti)
+│   ├── authguard/              # Redis-backed login lockout + token revocation
 │   ├── validation/             # Validator with custom rules
 │   ├── middleware/             # HTTP/gRPC middleware + rate limiting
-│   ├── response/               # Standard responses
+│   ├── response/               # Standard responses (protojson)
 │   ├── errors/                 # Error types
 │   ├── resilience/             # Circuit breaker, retry, timeout
 │   └── metrics/                # Prometheus metrics
@@ -151,10 +155,15 @@ make compose-up
 # Run directly
 make run
 
-# Or build and run
+# Or build and run (Makefile builds bin/go-grst-boilerplate)
 make build
-./bin/server
+./bin/go-grst-boilerplate
 ```
+
+> Note: `JWT_SECRET` is required — the server refuses to start without a strong
+> value. Generate one with `openssl rand -hex 32`. Apply migrations first with
+> `make migrate` (golang-migrate is the source of truth; AutoMigrate is off by
+> default).
 
 ### 4. Test Endpoints
 
@@ -425,11 +434,7 @@ Migration files are stored in `migrations/` directory:
 ```
 migrations/
 ├── 000001_create_users_table.up.sql       # Creates users table
-├── 000001_create_users_table.down.sql     # Drops users table
-├── 000002_create_payslips_table.up.sql    # Legacy/sample payslip migration
-├── 000002_create_payslips_table.down.sql
-├── 000003_create_audit_logs_table.up.sql
-└── 000003_create_audit_logs_table.down.sql
+└── 000001_create_users_table.down.sql     # Drops users table
 ```
 
 ### Creating New Migrations
@@ -552,18 +557,20 @@ app.Use(middleware.APIKeyRateLimiter(config, "X-API-Key"))
 
 This boilerplate implements security best practices following the [OWASP Top 10](https://owasp.org/www-project-top-ten/):
 
-| OWASP Risk | Implementation |
-|------------|----------------|
-| **A01: Broken Access Control** | Role-based access control (RBAC) middleware, resource ownership verification |
-| **A02: Cryptographic Failures** | bcrypt password hashing, secure PASETO secrets, TLS enforcement |
-| **A03: Injection** | Parameterized queries with GORM, input validation with go-playground/validator |
-| **A04: Insecure Design** | Rate limiting, account lockout, secure defaults |
-| **A05: Security Misconfiguration** | Environment-based config, secure CORS, security headers |
-| **A06: Vulnerable Components** | CI/CD test/build checks, dependabot-ready dependencies |
-| **A07: Auth Failures** | Strong password policy, token expiration, failed login tracking |
-| **A08: Data Integrity** | Request validation, file checksum verification |
-| **A09: Logging Failures** | Structured security logging with Zap, audit trails |
-| **A10: SSRF** | URL whitelist validation, internal IP blocking |
+Legend: ✅ implemented and wired · 📘 pattern documented in `CLAUDE.md` (implement per your domain).
+
+| OWASP Risk | Status | Implementation |
+|------------|--------|----------------|
+| **A01: Broken Access Control** | ✅ | Fail-closed RBAC on every route/RPC (missing policy → deny), resource-ownership pattern 📘 |
+| **A02: Cryptographic Failures** | ✅ | bcrypt hashing; PASETO v4 with a startup-enforced strong secret (weak/placeholder rejected); `DB_SSL_MODE` configurable |
+| **A03: Injection** | ✅ | Parameterized GORM queries, go-playground/validator, ORDER BY column whitelist |
+| **A04: Insecure Design** | ✅ | Global + per-auth-route rate limiting, Redis-backed account lockout, secure defaults |
+| **A05: Security Misconfiguration** | ✅ | Env-based config, CORS wildcard blocked in production, helmet security headers, gRPC reflection off in prod |
+| **A06: Vulnerable Components** | ✅ | CI runs tests (`-race`), `golangci-lint`, and `govulncheck` |
+| **A07: Auth Failures** | ✅ | Password complexity policy, token expiry, failed-login lockout, token revocation (logout/refresh rotation) |
+| **A08: Data Integrity** | ✅/📘 | Request validation ✅; payload signature/checksum verification 📘 |
+| **A09: Logging Failures** | ✅ | Structured logging with request-id/trace correlation; 5xx causes logged server-side, never leaked to clients |
+| **A10: SSRF** | 📘 | Guidance in `CLAUDE.md` (URL allowlist, internal-IP blocking); no user-driven outbound surface ships in the boilerplate |
 
 ### Security Features
 

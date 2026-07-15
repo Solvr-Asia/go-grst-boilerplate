@@ -8,8 +8,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Valid 32-byte raw secrets for tests (NewTokenService rejects anything shorter).
+const (
+	testSecretA = "test-secret-key-0123456789abcdef"
+	testSecretB = "test-secret-key-abcdef0123456789"
+)
+
+func mustNewTokenService(t *testing.T, secret string, expHours int) *TokenService {
+	t.Helper()
+	ts, err := NewTokenService(secret, expHours)
+	require.NoError(t, err)
+	return ts
+}
+
 func TestTokenService_GenerateAndValidateToken(t *testing.T) {
-	ts := NewTokenService("test-secret-key-123456789012", 24)
+	ts := mustNewTokenService(t, testSecretA, 24)
 
 	userID := "user123"
 	email := "test@example.com"
@@ -31,7 +44,7 @@ func TestTokenService_GenerateAndValidateToken(t *testing.T) {
 }
 
 func TestTokenService_InvalidToken(t *testing.T) {
-	ts := NewTokenService("test-secret-key-123456789012", 24)
+	ts := mustNewTokenService(t, testSecretA, 24)
 
 	// Test with invalid token
 	_, err := ts.ValidateToken("invalid-token")
@@ -43,9 +56,10 @@ func TestTokenService_InvalidToken(t *testing.T) {
 }
 
 func TestTokenService_ExpiredToken(t *testing.T) {
-	// Create service with very short expiration (1 second)
+	// Create service with a valid key but sub-millisecond expiration.
+	base := mustNewTokenService(t, testSecretA, 1)
 	ts := &TokenService{
-		secretKey:  NewTokenService("test-secret", 1).secretKey,
+		secretKey:  base.secretKey,
 		expiration: 1 * time.Millisecond,
 	}
 
@@ -61,8 +75,8 @@ func TestTokenService_ExpiredToken(t *testing.T) {
 }
 
 func TestTokenService_DifferentSecretKeys(t *testing.T) {
-	ts1 := NewTokenService("secret-key-1", 24)
-	ts2 := NewTokenService("secret-key-2", 24)
+	ts1 := mustNewTokenService(t, testSecretA, 24)
+	ts2 := mustNewTokenService(t, testSecretB, 24)
 
 	// Generate token with first service
 	token, err := ts1.GenerateToken("user123", "test@example.com", []string{"user"}, "COMP001")
@@ -73,50 +87,62 @@ func TestTokenService_DifferentSecretKeys(t *testing.T) {
 	assert.ErrorIs(t, err, ErrInvalidToken)
 }
 
-func TestTokenService_ShortSecretKey(t *testing.T) {
-	// Test with short secret key (should be padded)
-	ts := NewTokenService("short", 24)
-	
+func TestTokenService_WeakSecretRejected(t *testing.T) {
+	// Secrets shorter than 32 bytes must be rejected, not padded.
+	for _, weak := range []string{"", "short", "your-secret-key-change-in-production"[:31]} {
+		_, err := NewTokenService(weak, 24)
+		assert.ErrorIs(t, err, ErrWeakSecret, "secret %q should be rejected", weak)
+	}
+}
+
+func TestTokenService_HexSecretAccepted(t *testing.T) {
+	// A 64-char hex secret (e.g. from GenerateSecretKey) is accepted.
+	hexKey := GenerateSecretKey()
+	require.Len(t, hexKey, 64)
+
+	ts, err := NewTokenService(hexKey, 24)
+	require.NoError(t, err)
+
 	token, err := ts.GenerateToken("user123", "test@example.com", []string{"user"}, "COMP001")
 	require.NoError(t, err)
-	
+
 	claims, err := ts.ValidateToken(token)
 	require.NoError(t, err)
 	assert.Equal(t, "user123", claims.UserID)
 }
 
 func TestTokenService_LongSecretKey(t *testing.T) {
-	// Test with very long secret key (should be truncated)
+	// A secret longer than 32 bytes is truncated to the first 32 bytes.
 	longKey := "this-is-a-very-long-secret-key-that-exceeds-32-bytes-and-should-be-truncated"
-	ts := NewTokenService(longKey, 24)
-	
+	ts := mustNewTokenService(t, longKey, 24)
+
 	token, err := ts.GenerateToken("user123", "test@example.com", []string{"user"}, "COMP001")
 	require.NoError(t, err)
-	
+
 	claims, err := ts.ValidateToken(token)
 	require.NoError(t, err)
 	assert.Equal(t, "user123", claims.UserID)
 }
 
 func TestTokenService_EmptyRoles(t *testing.T) {
-	ts := NewTokenService("test-secret-key-123456789012", 24)
-	
+	ts := mustNewTokenService(t, testSecretA, 24)
+
 	// Generate token with empty roles
 	token, err := ts.GenerateToken("user123", "test@example.com", []string{}, "COMP001")
 	require.NoError(t, err)
-	
+
 	claims, err := ts.ValidateToken(token)
 	require.NoError(t, err)
 	assert.Empty(t, claims.Roles)
 }
 
 func TestTokenService_MultipleRoles(t *testing.T) {
-	ts := NewTokenService("test-secret-key-123456789012", 24)
-	
+	ts := mustNewTokenService(t, testSecretA, 24)
+
 	roles := []string{"admin", "user", "moderator", "viewer"}
 	token, err := ts.GenerateToken("user123", "test@example.com", roles, "COMP001")
 	require.NoError(t, err)
-	
+
 	claims, err := ts.ValidateToken(token)
 	require.NoError(t, err)
 	assert.Equal(t, roles, claims.Roles)

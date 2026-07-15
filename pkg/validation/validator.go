@@ -1,3 +1,4 @@
+// Package validation wraps go-playground/validator with custom rules.
 package validation
 
 import (
@@ -7,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/go-playground/validator/v10"
+
 	"go-grst-boilerplate/pkg/errors"
 )
 

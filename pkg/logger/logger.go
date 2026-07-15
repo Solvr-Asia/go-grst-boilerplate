@@ -1,15 +1,23 @@
+// Package logger provides a structured Zap logger with trace correlation.
 package logger
 
 import (
 	"context"
 	"os"
+	"sync"
+	"sync/atomic"
 
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-var globalLogger *zap.Logger
+// globalLogger is stored atomically so concurrent readers (L, package-level
+// helpers) never race with the writer in New.
+var (
+	globalLogger atomic.Pointer[zap.Logger]
+	initOnce     sync.Once
+)
 
 type Logger struct {
 	*zap.Logger
@@ -56,16 +64,18 @@ func New(cfg Config) (*Logger, error) {
 		level,
 	)
 
+	// No AddCallerSkip here: callers use the returned *zap.Logger directly
+	// (log.Info(...)), so the caller frame is already correct. The package-level
+	// helpers below add the skip themselves.
 	logger := zap.New(core,
 		zap.AddCaller(),
-		zap.AddCallerSkip(1),
 		zap.Fields(
 			zap.String("service", cfg.ServiceName),
 			zap.String("environment", cfg.Environment),
 		),
 	)
 
-	globalLogger = logger
+	globalLogger.Store(logger)
 
 	return &Logger{Logger: logger}, nil
 }
@@ -93,37 +103,48 @@ func (l *Logger) Sync() error {
 	return l.Logger.Sync()
 }
 
-// Global logger functions
+// L returns the global logger, lazily initializing a production logger the
+// first time it is called before New has run. Access is concurrency-safe.
 func L() *zap.Logger {
-	if globalLogger == nil {
-		var err error
-		globalLogger, err = zap.NewProduction()
-		if err != nil {
-			// Fallback to no-op logger to prevent nil pointer panic
-			globalLogger = zap.NewNop()
-		}
+	if l := globalLogger.Load(); l != nil {
+		return l
 	}
-	return globalLogger
+	initOnce.Do(func() {
+		if globalLogger.Load() == nil {
+			pl, err := zap.NewProduction()
+			if err != nil {
+				pl = zap.NewNop()
+			}
+			globalLogger.Store(pl)
+		}
+	})
+	return globalLogger.Load()
+}
+
+// skip returns the global logger with one extra caller frame skipped, so the
+// package-level helpers below report their caller rather than themselves.
+func skip() *zap.Logger {
+	return L().WithOptions(zap.AddCallerSkip(1))
 }
 
 func Info(msg string, fields ...zap.Field) {
-	L().Info(msg, fields...)
+	skip().Info(msg, fields...)
 }
 
 func Error(msg string, fields ...zap.Field) {
-	L().Error(msg, fields...)
+	skip().Error(msg, fields...)
 }
 
 func Debug(msg string, fields ...zap.Field) {
-	L().Debug(msg, fields...)
+	skip().Debug(msg, fields...)
 }
 
 func Warn(msg string, fields ...zap.Field) {
-	L().Warn(msg, fields...)
+	skip().Warn(msg, fields...)
 }
 
 func Fatal(msg string, fields ...zap.Field) {
-	L().Fatal(msg, fields...)
+	skip().Fatal(msg, fields...)
 }
 
 func With(fields ...zap.Field) *zap.Logger {
