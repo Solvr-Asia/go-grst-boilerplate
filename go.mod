@@ -1,6 +1,6 @@
 module go-grst-boilerplate
 
-go 1.25.11
+go 1.25.12
 
 require (
 	aidanwoods.dev/go-paseto v1.6.0

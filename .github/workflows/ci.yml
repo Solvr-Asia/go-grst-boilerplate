@@ -7,7 +7,7 @@ on:
     branches: [main, master, develop]
 
 env:
-  GO_VERSION: "1.25.11"
+  GO_VERSION: "1.25.12"
 
 jobs:
   lint:
@@ -24,7 +24,7 @@ jobs:
           cache: true
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
           version: latest
 
