@@ -10,7 +10,7 @@ A production-ready Go monolithic application boilerplate using **Go Fiber** for 
 - **Caching**: Redis with Redigo connection pooling
 - **Message Queue**: RabbitMQ for async processing
 - **Logging**: Zap structured logging with trace context
-- **Tracing**: OpenTelemetry with Jaeger exporter
+- **Tracing**: OpenTelemetry tracing with OTLP exporter (`noop` | `stdout` | `otlp`)
 - **Configuration**: Viper with `.env`, process env, and optional Infisical secret loading
 - **Validation**: go-playground/validator with custom validators
 - **Authentication**: PASETO v4 local tokens with role-based access control (RBAC)
@@ -111,15 +111,16 @@ go-grst-boilerplate/
 ├── docs/                       # API documentation
 │   └── swagger.go              # OpenAPI spec + Scalar UI
 ├── .github/workflows/          # CI/CD pipelines
-│   ├── ci.yml                  # Build & Docker
+│   ├── ci.yml                  # Lint, vet, test (race), vuln-scan, build & docker
 │   └── release.yml             # Release automation
-├── docker-compose.yml          # Infrastructure services
-├── Dockerfile                  # Multi-stage build
+├── docker-compose.yml          # Infrastructure services + one-shot migrate
+├── Dockerfile                  # Multi-stage, non-root, ships server/migrate/worker
 ├── Makefile                    # Build commands
-├── .golangci.yml               # Linter configuration
+├── .golangci.yml               # Linter configuration (golangci-lint v2)
 ├── .goreleaser.yml             # Release configuration
 ├── LICENSE                     # MIT License
-├── .env.example                # Environment template
+├── .env.example                # Environment template (authoritative config list)
+├── CHANGELOG.md                # Change log
 ├── CLAUDE.md                   # AI coding guidelines
 └── README.md
 ```
@@ -128,7 +129,7 @@ go-grst-boilerplate/
 
 ### Prerequisites
 
-- Go 1.25.11+ (CI and Docker use Go 1.25.11)
+- Go 1.25.12+ (CI and Docker use Go 1.25.12)
 - Docker & Docker Compose
 - Make
 
@@ -145,25 +146,35 @@ cp .env.example .env
 ### 2. Start Infrastructure
 
 ```bash
-# Start PostgreSQL, Redis, RabbitMQ, and Jaeger
+# Start Postgres, Redis, RabbitMQ, Jaeger — plus a one-shot `migrate` step that
+# applies SQL migrations, then the app container itself.
 make compose-up
 ```
 
-### 3. Run Application
+`docker compose` runs the `migrate` service to completion before starting `app`,
+so a compose bring-up is fully migrated and ready.
+
+### 3. Run Application (without Docker)
 
 ```bash
-# Run directly
+# Apply migrations first (golang-migrate is the source of truth).
+make migrate
+
+# API server (HTTP + gRPC). Run directly…
 make run
 
-# Or build and run (Makefile builds bin/go-grst-boilerplate)
+# …or build and run (Makefile builds bin/go-grst-boilerplate)
 make build
 ./bin/go-grst-boilerplate
+
+# Background worker (RabbitMQ consumer) — separate process
+make run-worker
 ```
 
-> Note: `JWT_SECRET` is required — the server refuses to start without a strong
-> value. Generate one with `openssl rand -hex 32`. Apply migrations first with
-> `make migrate` (golang-migrate is the source of truth; AutoMigrate is off by
-> default).
+> **`JWT_SECRET` is required** — the server refuses to start without a strong
+> value (no default is shipped). Generate one with `openssl rand -hex 32`. It
+> must be a 64-character hex string or at least 32 raw bytes. See
+> [Configuration](#configuration).
 
 ### 4. Test Endpoints
 
@@ -190,59 +201,62 @@ curl http://localhost:3000/api/v1/auth/me \
 
 ### Environment Variables
 
-Create a `.env` file in the project root:
+Copy `.env.example` to `.env` — **it is the authoritative, fully-documented list**
+of every key with its default and units. Config is read from `.env`, then process
+environment variables (which override), with optional Infisical loading. The
+essentials:
 
 ```env
 # Application
 SERVICE_NAME=go-grst-boilerplate
-ENVIRONMENT=development
+ENVIRONMENT=development           # development | production
 HTTP_PORT=3000
 GRPC_PORT=50051
 
-# Database
+# Database (golang-migrate is the source of truth; AutoMigrate is opt-in)
 DB_HOST=localhost
 DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=postgres
 DB_NAME=go_grst_db
-DB_TIMEZONE=Asia/Jakarta
-DB_SSL_MODE=disable
+DB_SSL_MODE=disable               # use "require" or stricter in production
+DB_AUTO_MIGRATE=false             # dev-only convenience; leave off in prod
 
-# Redis
+# Redis (used for login lockout + token revocation)
 REDIS_HOST=localhost
 REDIS_PORT=6379
-REDIS_PASSWORD=
-REDIS_DB=0
 
 # RabbitMQ
 RABBITMQ_HOST=localhost
 RABBITMQ_PORT=5672
 RABBITMQ_USER=guest
 RABBITMQ_PASSWORD=guest
-RABBITMQ_VHOST=/
 
-# PASETO token secret (legacy variable name)
-JWT_SECRET=your-super-secret-key
-JWT_EXPIRATION=24
+# Token signing — REQUIRED, no default. Must be a 64-char hex string
+# (openssl rand -hex 32) or at least 32 raw bytes. The server refuses to boot
+# with an empty, placeholder, or weak value.
+JWT_SECRET=<run: openssl rand -hex 32>
+JWT_EXPIRATION=24                 # hours
 
-# Infisical
-INFISICAL_ENABLED=false
-INFISICAL_SITE_URL=https://app.infisical.com
-INFISICAL_CLIENT_ID=
-INFISICAL_CLIENT_SECRET=
-INFISICAL_PROJECT_ID=
-INFISICAL_ENVIRONMENT=dev
-INFISICAL_SECRET_PATH=/
-
-# Telemetry
-OTEL_ENABLED=true
-OTEL_ENDPOINT=localhost:4317
-OTEL_EXPORTER_TYPE=stdout
-
-# Logging
-LOG_LEVEL=debug
-LOG_FORMAT=json
+# Telemetry / Logging
+OTEL_EXPORTER_TYPE=noop           # noop | stdout | otlp
+OTEL_SAMPLE_RATIO=1.0             # 0.0-1.0 parent-based ratio sampler
+LOG_LEVEL=info                    # debug | info | warn | error
+LOG_FORMAT=json                   # json | console
 ```
+
+**Hardening knobs** (all in `.env.example`, sensible defaults if unset):
+
+| Group | Keys |
+|-------|------|
+| HTTP | `PREFORK` (must be `false` — unsupported with the embedded gRPC server), `HTTP_READ_TIMEOUT`, `HTTP_WRITE_TIMEOUT`, `HTTP_IDLE_TIMEOUT`, `REQUEST_TIMEOUT` (per-request deadline, seconds) |
+| DB pool | `DB_MAX_IDLE_CONNS`, `DB_MAX_OPEN_CONNS`, `DB_CONN_MAX_LIFETIME` (minutes), `DB_PREPARE_STMT`, `DB_SKIP_DEFAULT_TRANSACTION` |
+| Redis | `REDIS_PASSWORD`, `REDIS_DB`, `REDIS_MAX_IDLE`, `REDIS_MAX_ACTIVE`, `REDIS_IDLE_TIMEOUT`, `REDIS_DIAL_TIMEOUT`, `REDIS_READ_TIMEOUT`, `REDIS_WRITE_TIMEOUT` |
+| Login protection | `LOGIN_MAX_ATTEMPTS`, `LOGIN_LOCKOUT_MINUTES` |
+| Security | `CORS_ORIGINS` (must not be `*` in production), `METRICS_AUTH_TOKEN` (gate `/metrics`) |
+
+> Two startup guards fail fast: `PREFORK=true` and `CORS_ORIGINS=*` in
+> `production` both prevent the server from booting.
 
 ### Infisical
 
@@ -294,15 +308,23 @@ When `INFISICAL_ENABLED=true`, secrets are fetched before the final config decod
 | PUT | `/api/v1/users/:id` | Yes | admin, superadmin | Update user |
 | DELETE | `/api/v1/users/:id` | Yes | admin, superadmin | Soft-delete user |
 
-### Health
+### Health & Ops
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/health` | Health check |
-| GET | `/ready` | Readiness check |
-| GET | `/metrics` | Prometheus metrics |
+| GET | `/health` | Liveness — shallow, always `200` if the process is up (no dependency checks) |
+| GET | `/ready` | Readiness — pings Postgres, Redis, and RabbitMQ; `503` if any is unhealthy |
+| GET | `/metrics` | Prometheus metrics (open by default; requires `Authorization: Bearer <token>` when `METRICS_AUTH_TOKEN` is set) |
 | GET | `/docs/openapi.json` | OpenAPI JSON |
 | GET | `/docs/` | Scalar API docs |
+
+### Authentication behavior
+
+- **Tokens** are PASETO v4 local, carrying a revocable `jti`. `JWT_EXPIRATION` sets the lifetime (hours).
+- **Login** rejects non-`active` accounts (`403`) and is gated by a per-account lockout (`429`) after `LOGIN_MAX_ATTEMPTS` failures for `LOGIN_LOCKOUT_MINUTES` (Redis-backed).
+- **Logout** revokes the presented token immediately (it can't be reused before expiry).
+- **Refresh** reloads the user (so role/status changes take effect), rotates the token, and revokes the old one. It requires a still-valid token — it cannot refresh an already-expired one.
+- **Authorization** is fail-closed: a route/RPC with no explicit policy is denied (a missing policy panics at startup rather than silently exposing an endpoint).
 
 ## gRPC Services
 
@@ -323,6 +345,9 @@ service UserApi {
 Connect via gRPC at `localhost:50051`.
 
 ## Response Format
+
+REST payloads are serialized with `protojson`, so `data` field names use
+**camelCase** (matching the proto JSON mapping, e.g. `createdAt`, `companyCode`).
 
 ### Success Response
 
@@ -388,7 +413,13 @@ Custom validators:
 
 ## Database Migrations
 
-This project uses [golang-migrate](https://github.com/golang-migrate/migrate) for database migrations with SQL files.
+This project uses [golang-migrate](https://github.com/golang-migrate/migrate) for
+database migrations with SQL files. **golang-migrate is the single source of
+truth.** GORM `AutoMigrate` is opt-in via `DB_AUTO_MIGRATE=true` (default `false`)
+and is a local-dev convenience only — production schema changes always go through
+reviewed SQL migrations. Run `make migrate` (or `./bin/...-migrate up`) before
+starting the server; `docker compose` does this automatically via its `migrate`
+service.
 
 ### Migration Commands
 
@@ -443,9 +474,9 @@ migrations/
 # Create a new migration
 make migrate-create name=add_orders_table
 
-# This creates:
-# - migrations/000004_add_orders_table.up.sql
-# - migrations/000004_add_orders_table.down.sql
+# This creates (next number after the existing 000001):
+# - migrations/000002_add_orders_table.up.sql
+# - migrations/000002_add_orders_table.down.sql
 ```
 
 ### Seeding Data
@@ -529,7 +560,12 @@ cfg := resilience.Config{
 
 ## Rate Limiting
 
-Built-in rate limiting middleware to prevent abuse:
+**What ships enabled:** a global per-IP limiter (100 req/min) on all routes, a
+stricter per-IP limiter (10 req/min) on the unauthenticated auth endpoints
+(`/auth/login`, `/auth/register`), and a Redis-backed per-account **login
+lockout** (`LOGIN_MAX_ATTEMPTS` / `LOGIN_LOCKOUT_MINUTES`). Health/metrics
+endpoints are skipped. The middleware below is the reusable library for adding
+more:
 
 ```go
 import "go-grst-boilerplate/pkg/middleware"
@@ -593,33 +629,34 @@ db.Where("email = ?", email).First(&user)
 
 ### CI Checks
 
-The CI/CD pipeline includes:
+The CI/CD pipeline (`.github/workflows/ci.yml`) runs these jobs:
 
-```yaml
-# .github/workflows/ci.yml
-- go test ./...
-- go run golang.org/x/vuln/cmd/govulncheck@latest ./...
-- go build ./cmd/server
-- go build ./cmd/migrate
-- go build ./cmd/worker
-- Docker build/push on main/master pushes
+```text
+- Lint   : golangci-lint (v2 config)
+- Test   : go vet ./...  +  go test -race -count=1 -covermode=atomic ./...
+- Vuln   : govulncheck (golang/govulncheck-action)
+- Build  : go build of cmd/server, cmd/migrate, cmd/worker
+- Docker : build on PRs; build + push to ghcr.io on main/master
 ```
 
-Run locally:
+Run the same checks locally:
 
 ```bash
-go test ./...
+golangci-lint run ./...
+go vet ./...
+go test -race ./...
 go run golang.org/x/vuln/cmd/govulncheck@latest ./...
-go build ./cmd/server
-go build ./cmd/migrate
-go build ./cmd/worker
+go build ./cmd/server ./cmd/migrate ./cmd/worker
 ```
 
 See [CLAUDE.md](CLAUDE.md) for detailed security guidelines and code examples.
 
 ## Prometheus Metrics
 
-Automatic HTTP metrics collection with `/metrics` endpoint:
+Automatic HTTP metrics collection with a `/metrics` endpoint. It is open by
+default; set `METRICS_AUTH_TOKEN` to require `Authorization: Bearer <token>`
+(otherwise restrict it at the network layer). HTTP metrics use the route pattern
+(not the raw path) as the label to bound cardinality.
 
 ```go
 import "go-grst-boilerplate/pkg/metrics"
@@ -756,15 +793,37 @@ Logs are structured JSON with trace context:
 }
 ```
 
+## Worker
+
+`cmd/worker` is a separate binary that consumes RabbitMQ messages. It sets up a
+topic exchange/queue/binding, runs several concurrent consumers (each on its own
+channel), and self-heals across connection/channel drops with poison-message
+handling and panic recovery. Extend `handleMessage` in `cmd/worker/main.go` with
+your business logic.
+
+```bash
+make run-worker       # Run the worker (go run ./cmd/worker)
+make build-worker     # Build bin/go-grst-boilerplate-worker
+```
+
 ## Make Commands
 
 ```bash
 # Application
-make run              # Run the application
-make build            # Build binary
-make test             # Run tests
-make lint             # Run linter
+make run              # Run the API server (HTTP + gRPC)
+make run-worker       # Run the RabbitMQ worker
+make build            # Build the server binary
+make build-worker     # Build the worker binary
+make dev              # Run the server with hot reload (Air)
+make test             # Run tests with the race detector
+make test-coverage    # Run tests with coverage profile
+make lint             # Run golangci-lint
+make fmt              # Format code
 make clean            # Clean build artifacts
+
+# Secrets (Infisical CLI-injected)
+make infisical-run          # Run the server with Infisical-injected secrets
+make infisical-run-worker   # Run the worker with Infisical-injected secrets
 
 # Database Migrations
 make migrate          # Run all pending migrations
@@ -776,6 +835,7 @@ make seed             # Run database seeders
 make fresh            # Drop all and re-migrate
 make fresh-seed       # Drop all, migrate, and seed
 make refresh          # Rollback all and re-migrate
+make refresh-seed     # Rollback all, re-migrate, and seed
 make reset            # Rollback all migrations
 
 # Docker
