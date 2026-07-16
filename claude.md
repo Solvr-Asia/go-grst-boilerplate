@@ -8,9 +8,10 @@ This is a Go monolithic application using:
 - **Go Fiber** for REST API
 - **gRPC** for service-to-service communication
 - **Domain-Driven Design (DDD)** with Clean Architecture
-- **GORM** for database ORM (PostgreSQL)
+- **GORM** for database ORM (PostgreSQL); **golang-migrate** for schema migrations (source of truth)
+- **PASETO v4** (`pkg/token`) for authentication tokens; **Redis-backed** login lockout + token revocation (`pkg/authguard`)
 - **Redigo** for Redis caching
-- **RabbitMQ** for message queuing
+- **RabbitMQ** for message queuing (auto-reconnecting client)
 - **Zap** for structured logging
 - **OpenTelemetry** for distributed tracing
 - **Viper** for configuration management
@@ -25,14 +26,18 @@ This is a Go monolithic application using:
 
 ```
 contract/       → Proto contracts (source of truth for gRPC + REST routes)
-cmd/server/     → Application entry point
+cmd/server/     → API server entry point (HTTP + gRPC)
+cmd/worker/     → RabbitMQ consumer entry point
+cmd/migrate/    → migration + seeding CLI
 cmd/protoc-gen-fiber/ → Codegen plugin: proto grst.route → Fiber routes
-config/         → Configuration, bootstrap, and infrastructure init
-handler/        → Presentation layer (gRPC handlers + generated Fiber routes)
-app/usecase/    → Business logic layer
-repository/     → Data access layer
+config/         → Configuration (+ Validate), bootstrap/DI, and infrastructure init
+handler/        → Presentation layer (gRPC handler impl + generated Fiber routes)
+app/usecase/    → Business logic layer (depends on the repository interface)
+repository/     → Data access layer (GORM)
 entity/         → Domain entities
-pkg/            → Shared utilities and infrastructure
+pkg/            → Shared infrastructure (token, authguard, middleware, rabbitmq,
+                  redis, database, resilience, metrics, telemetry, logger, errors, …)
+migrations/     → golang-migrate SQL files (the schema source of truth)
 ```
 
 **REST routes are generated, not hand-written.** Declare a route with a
@@ -43,12 +48,44 @@ pkg/            → Shared utilities and infrastructure
 route or auth map by hand — change the proto and regenerate. See README
 "Declaring Routes in Proto".
 
-**Data Flow:**
+**Data Flow (both protocols share the same handler + usecase):**
 ```
-Request → Handler → UseCase → Repository → Database
-                ↓
-            Response
+HTTP  → generated Fiber routes (handler/grpc/user) ─┐
+                                                     ├→ handler.userHandler → UseCase → Repository → DB
+gRPC  → UserApi server ──────────────────────────────┘
 ```
+
+The generated Fiber routes and the gRPC server are both served by the same
+`handler.userHandler` (which implements `UserApiServer`), so REST and gRPC
+share one implementation and one auth policy map.
+
+---
+
+## Codebase Conventions (established — follow these)
+
+- **Config validates and fails fast.** `Config.Validate()` (called in
+  `cmd/server`) rejects a weak/placeholder `JWT_SECRET`, `PREFORK=true` (the
+  embedded gRPC server is incompatible with Fiber prefork), and `CORS_ORIGINS=*`
+  in production. Never ship a usable default secret; add new env keys to
+  `.env.example` and bind them (all keys are bound via reflection so `Unmarshal`
+  reads env-only overrides).
+- **Auth is fail-closed.** Every route/RPC must have an explicit policy in
+  `handler/grpc/user` (`RouteAuthConfig` / `AuthConfigMethods`). REST uses
+  `mustAuthConfig(...)`, which panics at startup if a route has no policy; the
+  gRPC interceptor denies unknown methods. Adding an endpoint without a policy is
+  a startup crash, not a silent exposure.
+- **Auth context uses typed keys.** Use `middleware.WithAuthContext` /
+  `middleware.AuthFromContext` — never `ctx.Value("auth")`.
+- **golang-migrate is authoritative.** Change schema via SQL migrations;
+  `AutoMigrate` is opt-in (`DB_AUTO_MIGRATE`, default off) for local dev only.
+- **Updates are column-scoped.** Use `Updates(map/struct)` on the changed columns
+  (see `repository.UpdateFields`), not read-modify-write with `Save`, to avoid
+  lost updates.
+- **REST responses go through `pkg/response` protojson helpers** (`SuccessProto`,
+  `CreatedProto`, `SuccessProtoList`) so field names are camelCase per the proto
+  contract.
+- **5xx causes are logged, never leaked.** Map domain errors to `pkg/errors`
+  helpers; log the underlying cause server-side and return a sanitized message.
 
 ---
 
@@ -780,13 +817,20 @@ func passwordValidator(fl validator.FieldLevel) bool {
     return hasUpper && hasLower && hasDigit
 }
 
-// ✓ Good: JWT with proper expiration
-token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-    "user_id": user.ID,
-    "exp":     time.Now().Add(24 * time.Hour).Unix(),  // Not indefinite
-    "iat":     time.Now().Unix(),
-})
+// ✓ Good: mint tokens via pkg/token (PASETO v4 local, revocable jti, bounded expiry).
+// The token service enforces a strong secret at construction; JWT_SECRET has no
+// default and Config.Validate() fails fast on a weak/placeholder value.
+tokenService, err := token.NewTokenService(cfg.JWTSecret, cfg.JWTExpiration)
+if err != nil {
+    return fmt.Errorf("init token service: %w", err)
+}
+accessToken, err := tokenService.GenerateToken(user.ID, user.Email, user.Roles, user.CompanyCode)
+
+// Logout/refresh revoke the token by its jti via pkg/authguard (Redis-backed).
 ```
+
+> Note: this project uses PASETO (`pkg/token`), not JWT. `golang-jwt` was removed;
+> `JWT_SECRET` is only a (legacy) variable name for the PASETO signing key.
 
 ### A08:2021 - Software and Data Integrity Failures
 
@@ -909,26 +953,32 @@ func isInternalIP(ip net.IP) bool {
 ## Common Commands
 
 ```bash
-# Run application
-make run
+# Run
+make run              # API server (HTTP + gRPC)
+make run-worker       # RabbitMQ worker
+make dev              # server with hot reload (Air)
 
-# Build application
-make build
+# Build
+make build            # server binary
+make build-worker     # worker binary
 
-# Run with hot reload
-make dev
+# Quality (match CI)
+make lint             # golangci-lint (v2)
+make test             # go test -race
+make test-coverage    # + coverage profile
 
-# Docker compose
+# Docker compose (runs the migrate step, then the app)
 make compose-up
 make compose-down
 
 # Generate proto (if using protobuf)
 make proto
 
-# Database migrations
-make migrate
+# Database migrations (golang-migrate is the source of truth)
+make migrate                                # apply pending migrations
 make migrate-create name=create_orders_table
-make fresh-seed
+make seed
+make fresh-seed                             # drop, migrate, seed
 ```
 
 ---
