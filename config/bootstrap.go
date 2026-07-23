@@ -8,7 +8,6 @@ import (
 	"go-grst-boilerplate/docs"
 	"go-grst-boilerplate/handler"
 	pb_user "go-grst-boilerplate/handler/grpc/user"
-	http_user "go-grst-boilerplate/handler/http/user"
 	"go-grst-boilerplate/pkg/authguard"
 	"go-grst-boilerplate/pkg/errors"
 	"go-grst-boilerplate/pkg/metrics"
@@ -63,9 +62,8 @@ func Bootstrap(b *BootstrapConfig) (*BootstrapResult, error) {
 	// Health check
 	registerHealthChecks(b)
 
-	// HTTP routes
-	userRoutes := http_user.NewUserRoutes(userHandler)
-	userRoutes.RegisterRoutes(b.App, tokenValidator)
+	// HTTP routes (generated from grst.route options in the .proto).
+	pb_user.RegisterUserApiRoutes(b.App, userHandler, tokenValidator)
 
 	// gRPC server. Interceptor order (outermost first): recovery catches panics
 	// from everything downstream, then logging, then auth. Tracing is attached
@@ -75,7 +73,7 @@ func Bootstrap(b *BootstrapConfig) (*BootstrapResult, error) {
 		grpc.ChainUnaryInterceptor(
 			middleware.GRPCRecoveryInterceptor(b.Log),
 			middleware.GRPCLoggingInterceptor(b.Log),
-			middleware.GRPCAuthInterceptor(tokenValidator, pb_user.AuthConfigMethods),
+			middleware.GRPCAuthInterceptor(tokenValidator, pb_user.UserApiAuthConfig),
 		),
 	)
 	pb_user.RegisterUserApiServer(grpcServer, userHandler)

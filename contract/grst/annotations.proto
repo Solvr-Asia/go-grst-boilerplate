@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+// Package grst defines custom protobuf options used by this boilerplate to
+// declare a service's HTTP surface directly on each RPC. The protoc-gen-fiber
+// plugin reads these options and generates the Go Fiber route registration, so
+// the .proto is the single source of truth for method, path, auth, and rate
+// limiting — no hand-written route tables.
+package grst;
+
+import "google/protobuf/descriptor.proto";
+
+option go_package = "go-grst-boilerplate/handler/grpc/grst;grst";
+
+// Route declares how an RPC is exposed over REST. Attach it to a method:
+//
+//   rpc GetUser(GetUserReq) returns (UserProfile) {
+//     option (grst.route) = {
+//       method: "GET"
+//       path: "/api/v1/users/{id}"
+//       auth: { required: true, roles: ["admin", "superadmin"] }
+//     };
+//   }
+//
+// Path parameters use {name} and are matched against request fields by
+// json_name (converted to Fiber's :name syntax at generation time). For GET
+// requests, request fields not bound to a path parameter are populated from
+// query-string parameters.
+message Route {
+  // HTTP verb: GET, POST, PUT, PATCH, or DELETE.
+  string method = 1;
+
+  // Path template, e.g. "/api/v1/users/{id}". {segments} become path params.
+  string path = 2;
+
+  // When true, the JSON request body is parsed into the request message
+  // (typically for POST/PUT/PATCH). Ignored for bodyless requests.
+  bool body = 3;
+
+  // Authentication/authorization policy for this route. Absent means public.
+  Auth auth = 4;
+
+  // How the successful response is written. Defaults to a 200 OK envelope.
+  ResponseStyle response = 5;
+
+  // Optional per-route rate limit applied before the handler. Useful for
+  // unauthenticated credential endpoints (login/register) to blunt brute force.
+  RateLimit rate_limit = 6;
+}
+
+// Auth is the per-route authentication policy.
+message Auth {
+  // When true, a valid token is required to reach the handler.
+  bool required = 1;
+
+  // If non-empty, the caller must hold at least one of these roles. Implies
+  // required = true.
+  repeated string roles = 2;
+}
+
+// ResponseStyle selects how a successful handler result is serialized.
+enum ResponseStyle {
+  // 200 OK, single message under `data`.
+  RESPONSE_STYLE_OK = 0;
+
+  // 201 Created, single message under `data`.
+  RESPONSE_STYLE_CREATED = 1;
+
+  // 200 OK list envelope: the response's single repeated field becomes `data`
+  // and its pagination message (if any) becomes `meta`.
+  RESPONSE_STYLE_LIST = 2;
+}
+
+// RateLimit configures a fixed-window per-IP limiter for a single route.
+message RateLimit {
+  // Maximum requests allowed per window.
+  uint32 max = 1;
+
+  // Window length in seconds.
+  uint32 window_seconds = 2;
+}
+
+extend google.protobuf.MethodOptions {
+  // Field number in the internal (50000-99999) extension range.
+  Route route = 50123;
+}
