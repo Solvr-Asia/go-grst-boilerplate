@@ -19,7 +19,7 @@ A production-ready Go monolithic application boilerplate using **Go Fiber** for 
 - **Resilience**: Circuit breaker, retry, timeout with failsafe-go
 - **Rate Limiting**: Request throttling with configurable limits
 - **Metrics**: Prometheus metrics with `/metrics` endpoint
-- **API Documentation**: OpenAPI/Swagger with Scalar UI
+- **API Documentation**: OpenAPI 3 spec served through the Scalar API reference UI
 - **CI/CD**: GitHub Actions for build, docker, and release
 
 ## Tech Stack
@@ -52,8 +52,15 @@ go-grst-boilerplate/
 │   │   └── main.go
 │   ├── worker/                 # RabbitMQ consumer entry point
 │   │   └── main.go
-│   └── migrate/                # Migration + seeding CLI tool
+│   ├── migrate/                # Migration + seeding CLI tool
+│   │   └── main.go
+│   └── protoc-gen-fiber/       # protoc/buf plugin: generates Fiber routes from proto
 │       └── main.go
+├── contract/                   # Proto contracts (source of truth for gRPC + REST)
+│   ├── grst/annotations.proto  # Custom grst.route option (method/path/auth/rate limit)
+│   └── user/user.proto         # UserApi service with grst.route annotations
+├── buf.yaml                    # buf module config
+├── buf.gen.yaml                # buf codegen: protoc-gen-go / -go-grpc / -fiber
 ├── config/
 │   ├── config.go               # Viper configuration, Config struct & Validate()
 │   ├── infisical.go            # Optional Infisical secret loading
@@ -86,13 +93,13 @@ go-grst-boilerplate/
 │           └── usecase_test.go
 ├── handler/                    # Presentation layer
 │   ├── grpc/
+│   │   ├── grst/
+│   │   │   └── annotations.pb.go  # Generated grst.route option types
 │   │   └── user/
-│   │       ├── user.pb.go      # Generated protobuf
-│   │       ├── user_grpc.pb.go # Generated gRPC service
-│   │       └── user_protokit.go
-│   ├── http/
-│   │   └── user/
-│   │       └── user_routes.go
+│   │       ├── user.pb.go         # Generated protobuf
+│   │       ├── user_grpc.pb.go    # Generated gRPC service
+│   │       ├── user_fiber.pb.go   # Generated Fiber routes + auth map (protoc-gen-fiber)
+│   │       └── user_protokit.go   # Request validation rules
 │   └── user_handler.go         # Shared gRPC/HTTP handler implementation
 ├── pkg/                        # Shared utilities
 │   ├── database/               # GORM setup
@@ -109,7 +116,7 @@ go-grst-boilerplate/
 │   ├── resilience/             # Circuit breaker, retry, timeout
 │   └── metrics/                # Prometheus metrics
 ├── docs/                       # API documentation
-│   └── swagger.go              # OpenAPI spec + Scalar UI
+│   └── scalar.go              # OpenAPI spec + Scalar UI
 ├── .github/workflows/          # CI/CD pipelines
 │   ├── ci.yml                  # Lint, vet, test (race), vuln-scan, build & docker
 │   └── release.yml             # Release automation
@@ -611,7 +618,8 @@ Legend: ✅ implemented and wired · 📘 pattern documented in `CLAUDE.md` (imp
 ### Security Features
 
 ```go
-// Role-based access control is configured per route/method in user_protokit.go.
+// Role-based access control is declared per RPC via grst.route auth options in
+// the .proto and generated into user_fiber.pb.go (see "Declaring Routes in Proto").
 
 // Input validation
 type RegisterRequest struct {
@@ -844,10 +852,62 @@ make compose-up       # Start infrastructure
 make compose-down     # Stop infrastructure
 
 # Other
-make proto            # Generate protobuf (if applicable)
+make proto            # Regenerate proto (protoc-gen-go/-go-grpc/-fiber via buf)
 make deps             # Download dependencies
 make install-tools    # Install dev tools
 ```
+
+## Declaring Routes in Proto
+
+The REST surface is declared **directly on each RPC** in the `.proto` and the Go
+Fiber routes are generated — there is no hand-written route table or auth map to
+keep in sync. Method, path, path/query/body binding, auth policy, and rate limits
+all live in one place: the contract.
+
+Add a `grst.route` option to a method (`contract/user/user.proto`):
+
+```proto
+import "grst/annotations.proto";
+
+service UserApi {
+    rpc GetUser(GetUserReq) returns (UserProfile) {
+        option (grst.route) = {
+            method: "GET"
+            path: "/api/v1/users/{id}"          // {id} binds to request field `id`
+            auth: { required: true roles: ["admin", "superadmin"] }
+        };
+    }
+
+    rpc Register(RegisterReq) returns (RegisterRes) {
+        option (grst.route) = {
+            method: "POST"
+            path: "/api/v1/auth/register"
+            body: true                          // parse JSON body into the request
+            response: RESPONSE_STYLE_CREATED    // 201 instead of 200
+            rate_limit: { max: 10 window_seconds: 60 }
+        };
+    }
+}
+```
+
+Then run `make proto`. The [`protoc-gen-fiber`](cmd/protoc-gen-fiber) plugin
+generates `handler/grpc/user/user_fiber.pb.go` containing:
+
+- `RegisterUserApiRoutes(router, srv, validator)` — wires every route onto Fiber,
+  applying the declared auth middleware and rate limiters, binding path params
+  (`{id}` → `:id`), query params (for `GET`), and JSON body, then writing the
+  response (`RESPONSE_STYLE_OK` / `_CREATED` / `_LIST`).
+- `UserApiAuthConfig` — the gRPC full-method → auth policy map consumed by the
+  gRPC auth interceptor, so **gRPC and REST enforce the same rules from one
+  declaration**.
+
+Both are wired in `config/bootstrap.go`. To add an endpoint you now: define the
+RPC + messages, annotate it with `grst.route`, run `make proto`, and implement
+the method on the handler — no route file to touch.
+
+Options reference (`contract/grst/annotations.proto`): `method`, `path`, `body`,
+`auth { required, roles }`, `response` (`RESPONSE_STYLE_OK|_CREATED|_LIST`), and
+`rate_limit { max, window_seconds }`.
 
 ## Architecture Decisions
 

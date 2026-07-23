@@ -1,4 +1,4 @@
-// Package docs serves the OpenAPI specification and API docs UI.
+// Package docs serves the OpenAPI specification and the Scalar API reference UI.
 package docs
 
 import (
@@ -8,8 +8,8 @@ import (
 	scalar "github.com/yokeTH/gofiber-scalar"
 )
 
-// SetupSwagger configures Swagger documentation with Scalar UI
-func SetupSwagger(app *fiber.App) {
+// SetupScalar serves the OpenAPI spec and the Scalar API reference UI at /docs.
+func SetupScalar(app *fiber.App) {
 	specBytes, err := json.Marshal(GetOpenAPISpec())
 	if err != nil {
 		panic(err)
