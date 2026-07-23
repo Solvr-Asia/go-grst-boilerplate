@@ -19,7 +19,7 @@ A production-ready Go monolithic application boilerplate using **Go Fiber** for 
 - **Resilience**: Circuit breaker, retry, timeout with failsafe-go
 - **Rate Limiting**: Request throttling with configurable limits
 - **Metrics**: Prometheus metrics with `/metrics` endpoint
-- **API Documentation**: OpenAPI/Swagger with Scalar UI
+- **API Documentation**: OpenAPI 3 spec served through the Scalar API reference UI
 - **CI/CD**: GitHub Actions for build, docker, and release
 
 ## Tech Stack
@@ -116,7 +116,7 @@ go-grst-boilerplate/
 │   ├── resilience/             # Circuit breaker, retry, timeout
 │   └── metrics/                # Prometheus metrics
 ├── docs/                       # API documentation
-│   └── swagger.go              # OpenAPI spec + Scalar UI
+│   └── scalar.go              # OpenAPI spec + Scalar UI
 ├── .github/workflows/          # CI/CD pipelines
 │   ├── ci.yml                  # Lint, vet, test (race), vuln-scan, build & docker
 │   └── release.yml             # Release automation

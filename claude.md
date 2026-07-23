@@ -17,7 +17,7 @@ This is a Go monolithic application using:
 - **go-playground/validator** for validation
 - **failsafe-go** for resilience (circuit breaker, retry, timeout)
 - **Prometheus** for metrics and monitoring
-- **Scalar** for API documentation (OpenAPI/Swagger)
+- **Scalar** for API documentation (OpenAPI 3)
 
 ---
 

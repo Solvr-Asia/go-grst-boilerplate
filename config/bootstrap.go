@@ -92,7 +92,7 @@ func registerObservabilityRoutes(app *fiber.App, cfg *Config) {
 	m := metrics.Init(cfg.ServiceName)
 	app.Use(m.Middleware())
 	app.Get("/metrics", metricsAuth(cfg.MetricsAuthToken), m.Handler())
-	docs.SetupSwagger(app)
+	docs.SetupScalar(app)
 }
 
 // metricsAuth optionally guards the /metrics endpoint with a bearer token. When
