@@ -88,98 +88,71 @@ targets from that directory (or via the root `bun run *:api` scripts).
 ## Project Structure
 
 ```
-go-grst-boilerplate/
-├── cmd/
-│   ├── server/                 # HTTP + gRPC API server entry point
-│   │   └── main.go
-│   ├── worker/                 # RabbitMQ consumer entry point
-│   │   └── main.go
-│   ├── migrate/                # Migration + seeding CLI tool
-│   │   └── main.go
-│   └── protoc-gen-fiber/       # protoc/buf plugin: generates Fiber routes from proto
-│       └── main.go
-├── contract/                   # Proto contracts (source of truth for gRPC + REST)
-│   ├── grst/annotations.proto  # Custom grst.route option (method/path/auth/rate limit)
-│   └── user/user.proto         # UserApi service with grst.route annotations
-├── buf.yaml                    # buf module config
-├── buf.gen.yaml                # buf codegen: protoc-gen-go / -go-grpc / -fiber
-├── config/
-│   ├── config.go               # Viper configuration, Config struct & Validate()
-│   ├── infisical.go            # Optional Infisical secret loading
-│   ├── bootstrap.go            # Dependency wiring (repos, usecases, routes)
-│   ├── fiber.go                # Fiber app, CORS, helmet, middleware, error handler
-│   ├── database.go             # Database init (+ optional AutoMigrate)
-│   ├── logger.go               # Zap logger init
-│   ├── telemetry.go            # OpenTelemetry init
-│   ├── redis.go                # Redis client init
-│   └── rabbitmq.go             # RabbitMQ client init
-├── examples/                   # Runnable usage examples (PASETO auth flow)
-├── migrations/                 # SQL migration files
-│   ├── 000001_create_users_table.up.sql
-│   ├── 000001_create_users_table.down.sql
-│   └── ...
-├── database/
-│   ├── migrate/                # Migration helper
-│   │   └── migrate.go
-│   └── seeds/                  # Database seeders
-│       └── seeder.go
-├── entity/                     # Domain entities
-│   └── user.go
-├── repository/                 # Data access layer
-│   └── user_repository/
-│       └── user_repository.go
-├── app/                        # Business logic layer
-│   └── usecase/
-│       └── user/
-│           ├── usecase.go
-│           └── usecase_test.go
-├── handler/                    # Presentation layer
-│   ├── grpc/
-│   │   ├── grst/
-│   │   │   └── annotations.pb.go  # Generated grst.route option types
-│   │   └── user/
-│   │       ├── user.pb.go         # Generated protobuf
-│   │       ├── user_grpc.pb.go    # Generated gRPC service
-│   │       ├── user_fiber.pb.go   # Generated Fiber routes + auth map (protoc-gen-fiber)
-│   │       └── user_protokit.go   # Request validation rules
-│   └── user_handler.go         # Shared gRPC/HTTP handler implementation
-├── pkg/                        # Shared utilities
-│   ├── database/               # GORM setup
-│   ├── redis/                  # Redigo client
-│   ├── rabbitmq/               # Auto-reconnecting RabbitMQ client
-│   ├── logger/                 # Zap logger
-│   ├── telemetry/              # OpenTelemetry setup
-│   ├── token/                  # PASETO token service (revocable jti)
-│   ├── authguard/              # Redis-backed login lockout + token revocation
-│   ├── validation/             # Validator with custom rules
-│   ├── middleware/             # HTTP/gRPC middleware + rate limiting
-│   ├── response/               # Standard responses (protojson)
-│   ├── errors/                 # Error types
-│   ├── resilience/             # Circuit breaker, retry, timeout
-│   └── metrics/                # Prometheus metrics
-├── docs/                       # API documentation
-│   └── scalar.go              # OpenAPI spec + Scalar UI
-├── .github/workflows/          # CI/CD pipelines
-│   ├── ci.yml                  # Lint, vet, test (race), vuln-scan, build & docker
-│   └── release.yml             # Release automation
-├── docker-compose.yml          # Infrastructure services + one-shot migrate
-├── Dockerfile                  # Multi-stage, non-root, ships server/migrate/worker
-├── Makefile                    # Build commands
-├── .golangci.yml               # Linter configuration (golangci-lint v2)
-├── .goreleaser.yml             # Release configuration
-├── LICENSE                     # MIT License
-├── .env.example                # Environment template (authoritative config list)
-├── CHANGELOG.md                # Change log
-├── CLAUDE.md                   # AI guidance index → .claude/rules, agents, skills
-├── AGENTS.md                   # Same guidance, for AGENTS.md-aware tools
-├── .claude/                    # AI config
-│   ├── settings.json           # Shared permissions (committed)
-│   ├── settings.local.json     # Personal overrides (git-ignored, not pushed)
-│   ├── rules/                  # Topical coding standards & conventions
-│   ├── agents/                 # Subagent definitions (e.g. code-reviewer)
-│   └── skills/                 # Reusable skills (e.g. proto-routes)
+Veemon/                              # polyglot Bun-workspace monorepo
+├── apps/
+│   ├── api/                         # Go backend — Fiber REST + gRPC (DDD, Clean Architecture)
+│   │   ├── cmd/
+│   │   │   ├── server/              # HTTP + gRPC API server entry point
+│   │   │   ├── worker/              # RabbitMQ consumer entry point
+│   │   │   ├── migrate/             # Migration + seeding CLI tool
+│   │   │   └── protoc-gen-fiber/    # buf plugin: generates Fiber routes from proto
+│   │   ├── config/                  # Viper config (+ Validate), bootstrap/DI, infra init
+│   │   ├── handler/                 # Presentation layer (gRPC impl + generated Fiber routes)
+│   │   │   ├── grpc/grst/           # Generated grst.route option types
+│   │   │   ├── grpc/user/           # Generated protobuf / gRPC / Fiber routes
+│   │   │   └── user_handler.go      # Shared gRPC/HTTP handler implementation
+│   │   ├── app/usecase/             # Business logic layer
+│   │   ├── repository/              # Data access layer (GORM)
+│   │   ├── entity/                  # Domain entities
+│   │   ├── pkg/                     # Shared infra: token, authguard, middleware, redis,
+│   │   │                            #   rabbitmq, database, resilience, metrics, telemetry,
+│   │   │                            #   logger, response, errors, validation
+│   │   ├── migrations/              # golang-migrate SQL files (schema source of truth)
+│   │   ├── database/                # Migration helper + seeders
+│   │   ├── examples/                # Runnable usage examples (PASETO auth flow)
+│   │   ├── docs/scalar.go           # OpenAPI spec + Scalar UI
+│   │   ├── Dockerfile               # Multi-stage, non-root (ships server/migrate/worker)
+│   │   ├── Makefile                 # Backend build / test / migrate commands
+│   │   ├── .env.example             # Environment template (authoritative config list)
+│   │   ├── .golangci.yml            # Linter config (golangci-lint v2)
+│   │   ├── .goreleaser.yml          # Release config
+│   │   └── go.mod · go.sum
+│   ├── web/                         # React 19 + TanStack Router + Vite + Tauri (@grst/web)
+│   │   ├── src/                     # App: routes/, lib/, main.tsx, routeTree.gen.ts
+│   │   ├── src-tauri/               # Rust desktop shell (Cargo.toml, tauri.conf.json)
+│   │   ├── index.html · vite.config.ts · tsconfig.json
+│   │   └── README.md
+│   └── ai/                          # Mastra.ai agent service (@grst/ai)
+│       ├── src/mastra/              # agents/, tools/, workflows/, api.ts, index.ts
+│       └── README.md
+├── packages/
+│   ├── api-client/                  # @grst/api-client — generated protobuf-es + typed REST client
+│   │   └── src/gen/                 # Generated TS from contract/ (grst, user)
+│   └── tsconfig/                    # @grst/tsconfig — shared base tsconfig
+├── contract/                        # Proto contract — single source of truth (Go + TS)
+│   ├── grst/annotations.proto       # Custom grst.route option (method/path/auth/rate limit)
+│   └── user/user.proto              # UserApi service with grst.route annotations
+├── docs/superpowers/                # Design specs & plans (specs/, plans/)
+├── .github/workflows/               # CI/CD: ci.yml (lint/test/vuln/build/docker), release.yml
+├── .claude/                         # AI config
+│   ├── settings.json                # Shared permissions (committed)
+│   ├── settings.local.json          # Personal overrides (git-ignored, not pushed)
+│   ├── rules/                       # Topical coding standards & conventions
+│   ├── agents/                      # Subagent definitions (e.g. code-reviewer)
+│   └── skills/                      # Reusable skills (e.g. proto-routes)
+├── buf.yaml · buf.gen.yaml          # buf module + codegen (Go → apps/api, TS → packages/api-client)
+├── package.json · bun.lock          # Bun workspaces + root scripts (proto, dev, build, test)
+├── docker-compose.yml               # Infrastructure services + one-shot migrate
+├── CLAUDE.md                        # AI guidance index → .claude/rules, agents, skills
+├── AGENTS.md                        # Same guidance, for AGENTS.md-aware tools
+├── CHANGELOG.md                     # Change log
+├── LICENSE                          # MIT License
 └── README.md
 ```
+
+Paths inside `apps/api/` (e.g. `cmd/`, `config/`, `pkg/`, `handler/`) are relative
+to that directory throughout this README; the backend is a self-contained Go
+module orchestrated by its own `Makefile`.
 
 ### AI-assistant docs
 
@@ -949,8 +922,8 @@ service UserApi {
 }
 ```
 
-Then run `make proto`. The [`protoc-gen-fiber`](cmd/protoc-gen-fiber) plugin
-generates `handler/grpc/user/user_fiber.pb.go` containing:
+Then run `make proto`. The [`protoc-gen-fiber`](apps/api/cmd/protoc-gen-fiber) plugin
+generates `apps/api/handler/grpc/user/user_fiber.pb.go` containing:
 
 - `RegisterUserApiRoutes(router, srv, validator)` — wires every route onto Fiber,
   applying the declared auth middleware and rate limiters, binding path params
