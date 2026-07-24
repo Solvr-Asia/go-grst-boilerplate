@@ -28,8 +28,8 @@ proto:
 	@echo "Building protoc-gen-fiber plugin..."
 	@mkdir -p bin
 	$(GOBUILD) -o ./bin/protoc-gen-fiber ./cmd/protoc-gen-fiber
-	@echo "Generating proto files..."
-	buf generate
+	@echo "Generating proto files (buf runs from repo root)..."
+	cd ../.. && buf generate
 	@echo "Proto generation completed"
 
 # Build the application
