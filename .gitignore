@@ -47,7 +47,8 @@ tmp/
 dist/
 build/
 
-.claude/
+# Claude Code: track shared config/rules/agents/skills; ignore local overrides
+.claude/settings.local.json
 openspec
 .qoder/
 .kiro/

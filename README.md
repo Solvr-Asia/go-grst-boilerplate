@@ -12,6 +12,8 @@ apps/ai/                Mastra.ai agent service (TypeScript)
 packages/api-client/    Generated protobuf-es types + typed REST client (@grst/api-client)
 packages/tsconfig/      Shared base tsconfig (@grst/tsconfig)
 contract/               Proto contract — the single source of truth (Go + TypeScript)
+CLAUDE.md / AGENTS.md   AI-assistant guidance (indexes into .claude/)
+.claude/                AI config: settings.json (shared) + rules/, agents/, skills/
 ```
 
 The `contract/` proto generates Go (into `apps/api`) **and** TypeScript (into
@@ -168,9 +170,26 @@ go-grst-boilerplate/
 ├── LICENSE                     # MIT License
 ├── .env.example                # Environment template (authoritative config list)
 ├── CHANGELOG.md                # Change log
-├── CLAUDE.md                   # AI coding guidelines
+├── CLAUDE.md                   # AI guidance index → .claude/rules, agents, skills
+├── AGENTS.md                   # Same guidance, for AGENTS.md-aware tools
+├── .claude/                    # AI config
+│   ├── settings.json           # Shared permissions (committed)
+│   ├── settings.local.json     # Personal overrides (git-ignored, not pushed)
+│   ├── rules/                  # Topical coding standards & conventions
+│   ├── agents/                 # Subagent definitions (e.g. code-reviewer)
+│   └── skills/                 # Reusable skills (e.g. proto-routes)
 └── README.md
 ```
+
+### AI-assistant docs
+
+Guidance for AI coding assistants is split into small, focused files under
+[`.claude/`](.claude/). [`CLAUDE.md`](CLAUDE.md) and [`AGENTS.md`](AGENTS.md) are
+thin indexes that link to [`.claude/rules/`](.claude/rules) (coding standards,
+architecture, security, goroutines, testing, …), [`.claude/agents/`](.claude/agents),
+and [`.claude/skills/`](.claude/skills). `.claude/settings.json` (shared
+permissions) is committed; `.claude/settings.local.json` (personal overrides) is
+git-ignored.
 
 ## Quick Start
 
