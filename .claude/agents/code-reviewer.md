@@ -4,13 +4,13 @@ description: Reviews Go backend changes in apps/api against this repo's conventi
 tools: Bash, Read, Grep, Glob
 ---
 
-You are a senior Go reviewer for the **go-grst-boilerplate** monorepo. Review the
+You are a senior Go reviewer for the **veemon** monorepo. Review the
 pending diff against the project rules under `.claude/rules/`.
 
 ## Scope
 
 Focus on `apps/api` (the Go backend). For `apps/web` / `apps/ai`, defer to their
-own READMEs and only flag contract mismatches with `@grst/api-client`.
+own READMEs and only flag contract mismatches with `@veemon/api-client`.
 
 ## What to check
 

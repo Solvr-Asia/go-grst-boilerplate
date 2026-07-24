@@ -5,8 +5,8 @@ import (
 	"context"
 	"errors"
 
-	"go-grst-boilerplate/entity"
-	"go-grst-boilerplate/repository/user_repository"
+	"veemon/entity"
+	"veemon/repository/user_repository"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"

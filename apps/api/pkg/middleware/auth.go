@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"go-grst-boilerplate/pkg/errors"
+	"veemon/pkg/errors"
 
 	"github.com/gofiber/fiber/v2"
 )

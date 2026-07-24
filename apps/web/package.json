@@ -1,5 +1,5 @@
 {
-  "name": "@grst/web",
+  "name": "@veemon/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,14 +14,14 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
-    "@grst/api-client": "*",
+    "@veemon/api-client": "*",
     "@tanstack/react-query": "^5.62.7",
     "@tanstack/react-router": "^1.95.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@grst/tsconfig": "*",
+    "@veemon/tsconfig": "*",
     "@tanstack/router-plugin": "^1.95.1",
     "@tauri-apps/cli": "^2.1.0",
     "@types/bun": "^1.1.14",

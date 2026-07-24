@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 
-	"go-grst-boilerplate/pkg/errors"
+	"veemon/pkg/errors"
 )
 
 var (

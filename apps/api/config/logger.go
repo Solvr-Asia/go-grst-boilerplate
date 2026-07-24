@@ -1,7 +1,7 @@
 package config
 
 import (
-	"go-grst-boilerplate/pkg/logger"
+	"veemon/pkg/logger"
 )
 
 func NewLogger(cfg *Config) (*logger.Logger, error) {

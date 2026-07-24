@@ -1,12 +1,12 @@
 [package]
-name = "grst-web"
+name = "veemon-web"
 version = "0.0.0"
-description = "GRST web desktop shell"
+description = "Veemon web desktop shell"
 edition = "2021"
 rust-version = "1.77.2"
 
 [lib]
-name = "grst_web_lib"
+name = "veemon_web_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

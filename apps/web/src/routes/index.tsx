@@ -7,10 +7,10 @@ export const Route = createFileRoute("/")({
 function HomePage() {
   return (
     <div>
-      <h1>@grst/web</h1>
+      <h1>@veemon/web</h1>
       <p>
         React + TanStack Router + Tauri starter, wired to the Go API via
-        <code> @grst/api-client</code>. Head to <strong>Login</strong> to
+        <code> @veemon/api-client</code>. Head to <strong>Login</strong> to
         exercise the auth flow end-to-end.
       </p>
     </div>

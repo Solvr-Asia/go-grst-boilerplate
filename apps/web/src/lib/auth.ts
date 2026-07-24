@@ -9,7 +9,7 @@
 //   - the Tauri secure store / OS keychain for the desktop build.
 // The getToken/setToken/clearToken interface is the single seam to swap — callers
 // don't change.
-const KEY = "grst.token";
+const KEY = "veemon.token";
 
 export function getToken(): string | null {
   return localStorage.getItem(KEY);

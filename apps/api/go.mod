@@ -1,4 +1,4 @@
-module go-grst-boilerplate
+module veemon
 
 go 1.25.12
 

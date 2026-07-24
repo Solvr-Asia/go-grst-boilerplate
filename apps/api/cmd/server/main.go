@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"go-grst-boilerplate/config"
+	"veemon/config"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"

@@ -3,7 +3,7 @@
 This repo is a **polyglot Bun-workspace monorepo**. The Go backend lives in
 `apps/api` (all Go paths in these rules are relative to it); `apps/web` is a
 React + TanStack Router + Tauri client and `apps/ai` is a LangGraph.js service, both
-consuming the Go API through the generated `@grst/api-client`
+consuming the Go API through the generated `@veemon/api-client`
 (`packages/api-client`). The proto contract in `contract/` (repo root) is the
 single source of truth generating Go **and** TypeScript. See the layout below and
 `docs/superpowers/specs/` for the design.
@@ -29,10 +29,10 @@ The Go backend (`apps/api`) is a Go monolithic application using:
 
 ```
 apps/api/       → Go backend (Fiber REST + gRPC) — the module the rules describe
-apps/web/       → React + TanStack Router + Vite + Tauri (@grst/web)
-apps/ai/        → LangGraph.js agent + workflow service (@grst/ai, Hono HTTP)
-packages/api-client/ → generated protobuf-es types + typed REST client (@grst/api-client)
-packages/tsconfig/   → shared base tsconfig (@grst/tsconfig)
+apps/web/       → React + TanStack Router + Vite + Tauri (@veemon/web)
+apps/ai/        → LangGraph.js agent + workflow service (@veemon/ai, Hono HTTP)
+packages/api-client/ → generated protobuf-es types + typed REST client (@veemon/api-client)
+packages/tsconfig/   → shared base tsconfig (@veemon/tsconfig)
 contract/       → proto source of truth (repo root) — generates Go + TS
 buf.gen.yaml    → Go → apps/api/handler/grpc; TS → packages/api-client/src/gen
 package.json    → Bun workspaces + root scripts (proto, dev, build, test)
@@ -41,4 +41,4 @@ package.json    → Bun workspaces + root scripts (proto, dev, build, test)
 Root scripts (Bun): `bun run proto` (regenerate Go + TS), `bun run dev`
 (api + web + ai), `bun run build`, `bun run test`. `apps/api` is orchestrated via
 `make` and is not a Bun workspace member. The TS apps call the existing Fiber
-REST routes through `@grst/api-client` — no changes to the Go server (Approach A).
+REST routes through `@veemon/api-client` — no changes to the Go server (Approach A).

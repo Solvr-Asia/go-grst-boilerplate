@@ -1,14 +1,14 @@
-# @grst/web
+# @veemon/web
 
 React 19 + TanStack Router + TanStack Query, bundled by Vite and wrapped in a
 Tauri v2 desktop shell. Talks to the Go API (`apps/api`) through the shared
-`@grst/api-client` (typed REST over the proto contract).
+`@veemon/api-client` (typed REST over the proto contract).
 
 ## Develop
 
 ```bash
 bun install                 # from repo root
-bun --filter @grst/web run dev      # browser dev server on http://localhost:5173
+bun --filter @veemon/web run dev      # browser dev server on http://localhost:5173
 ```
 
 Set the API base URL via `.env` (see `.env.example`); it defaults to
@@ -22,14 +22,14 @@ The desktop shell in `src-tauri/` requires a **Rust toolchain** (`rustup`,
 not. Once Rust is installed:
 
 ```bash
-bun --filter @grst/web run tauri:dev     # desktop window (spawns Vite)
-bun --filter @grst/web run tauri:build   # production desktop bundle
+bun --filter @veemon/web run tauri:dev     # desktop window (spawns Vite)
+bun --filter @veemon/web run tauri:build   # production desktop bundle
 ```
 
 Generate the bundle icons once (writes `src-tauri/icons/`):
 
 ```bash
-bun --filter @grst/web run tauri icon path/to/logo.png
+bun --filter @veemon/web run tauri icon path/to/logo.png
 ```
 
 ## Security notes

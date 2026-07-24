@@ -1,6 +1,6 @@
 // Domain port: the user-directory capability agents/workflows depend on.
 //
-// This is intentionally decoupled from @grst/api-client — the application layer
+// This is intentionally decoupled from @veemon/api-client — the application layer
 // depends on this interface, and an adapter in infrastructure/ implements it.
 // That keeps the graphs testable with a fake and swappable if the backend moves.
 

@@ -5,7 +5,7 @@ contract/       → Proto contracts (source of truth for gRPC + REST routes; at 
 cmd/server/     → API server entry point (HTTP + gRPC)
 cmd/worker/     → RabbitMQ consumer entry point
 cmd/migrate/    → migration + seeding CLI
-cmd/protoc-gen-fiber/ → Codegen plugin: proto grst.route → Fiber routes
+cmd/protoc-gen-fiber/ → Codegen plugin: proto veemon.route → Fiber routes
 config/         → Configuration (+ Validate), bootstrap/DI, and infrastructure init
 handler/        → Presentation layer (gRPC handler impl + generated Fiber routes)
 app/usecase/    → Business logic layer (depends on the repository interface)
@@ -17,7 +17,7 @@ migrations/     → golang-migrate SQL files (the schema source of truth)
 ```
 
 **REST routes are generated, not hand-written.** Declare a route with a
-`grst.route` option on the RPC in `contract/<svc>/<svc>.proto` (method, path,
+`veemon.route` option on the RPC in `contract/<svc>/<svc>.proto` (method, path,
 `auth { required, roles }`, `body`, `response`, `rate_limit`), then run
 `make proto`. `protoc-gen-fiber` emits `handler/grpc/<svc>/<svc>_fiber.pb.go`
 (`Register<Svc>Routes` + the `<Svc>AuthConfig` gRPC auth map). Never add a Fiber

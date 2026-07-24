@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Convert `go-grst-boilerplate` into a polyglot Bun-workspace monorepo — `apps/api` (Go, relocated unchanged), `apps/web` (React + TanStack Router + Vite + Tauri), `apps/ai` (Mastra.ai) — sharing one proto contract via generated Go + TypeScript clients.
+**Goal:** Convert `veemon` into a polyglot Bun-workspace monorepo — `apps/api` (Go, relocated unchanged), `apps/web` (React + TanStack Router + Vite + Tauri), `apps/ai` (Mastra.ai) — sharing one proto contract via generated Go + TypeScript clients.
 
 **Architecture:** `contract/*.proto` is the single source of truth. `buf` generates Go into `apps/api` and TypeScript (protobuf-es) into `packages/api-client`. The TS apps call the existing Fiber REST routes through a thin typed client (Approach A). Bun workspaces orchestrate the TS apps; the Go app keeps its `make` targets.
 
@@ -10,8 +10,8 @@
 
 ## Global Constraints
 
-- Go module name stays **`go-grst-boilerplate`** — never rename (imports depend on it).
-- Workspace package scope is **`@grst/*`**.
+- Go module name stays **`veemon`** — never rename (imports depend on it).
+- Workspace package scope is **`@veemon/*`**.
 - Ports: api **:3000** HTTP / **:50051** gRPC · web **:5173** · ai **:4111**.
 - `buf` installed via `go install github.com/bufbuild/buf/cmd/buf@latest`.
 - TS codegen plugin `protoc-gen-es` resolved locally from `node_modules/.bin` (not global).
@@ -46,7 +46,7 @@ Expected: proto regenerates, build succeeds, tests pass. This is the pre-move ba
 - Modify: `buf.gen.yaml`, `docker-compose.yml`, `apps/api/Makefile`, `.gitignore`
 
 **Interfaces:**
-- Produces: Go module rooted at `apps/api/` with unchanged import paths (`go-grst-boilerplate/...`); `apps/api/bin/protoc-gen-fiber` built by `make -C apps/api proto`.
+- Produces: Go module rooted at `apps/api/` with unchanged import paths (`veemon/...`); `apps/api/bin/protoc-gen-fiber` built by `make -C apps/api proto`.
 
 - [ ] **Step 1: Create apps/api and git mv the Go tree**
 
@@ -124,28 +124,28 @@ git add -A && git commit -m "refactor: relocate Go module to apps/api"
 - Create: `package.json` (root), `packages/tsconfig/package.json`, `packages/tsconfig/base.json`
 
 **Interfaces:**
-- Produces: root Bun workspace (`apps/*`, `packages/*`); `@grst/tsconfig/base.json` consumed by all TS packages.
+- Produces: root Bun workspace (`apps/*`, `packages/*`); `@veemon/tsconfig/base.json` consumed by all TS packages.
 
 - [ ] **Step 1: Root `package.json`**
 
 ```json
 {
-  "name": "go-grst-monorepo",
+  "name": "veemon",
   "private": true,
   "workspaces": ["apps/web", "apps/ai", "packages/*"],
   "scripts": {
     "proto": "make -C apps/api proto",
     "build": "bun run build:client && bun run build:web && bun run build:ai && bun run build:api",
     "build:api": "make -C apps/api build",
-    "build:client": "bun --filter @grst/api-client run build",
-    "build:web": "bun --filter @grst/web run build",
-    "build:ai": "bun --filter @grst/ai run build",
+    "build:client": "bun --filter @veemon/api-client run build",
+    "build:web": "bun --filter @veemon/web run build",
+    "build:ai": "bun --filter @veemon/ai run build",
     "test": "bun run test:api && bun run test:ts",
     "test:api": "cd apps/api && go test -race ./...",
-    "test:ts": "bun --filter './packages/*' --filter '@grst/web' --filter '@grst/ai' run test",
+    "test:ts": "bun --filter './packages/*' --filter '@veemon/web' --filter '@veemon/ai' run test",
     "dev:api": "make -C apps/api dev",
-    "dev:web": "bun --filter @grst/web run dev",
-    "dev:ai": "bun --filter @grst/ai run dev",
+    "dev:web": "bun --filter @veemon/web run dev",
+    "dev:ai": "bun --filter @veemon/ai run dev",
     "dev": "concurrently -n api,web,ai -c blue,green,magenta 'bun run dev:api' 'bun run dev:web' 'bun run dev:ai'"
   },
   "devDependencies": {
@@ -158,7 +158,7 @@ git add -A && git commit -m "refactor: relocate Go module to apps/api"
 - [ ] **Step 2: `packages/tsconfig/package.json`**
 
 ```json
-{ "name": "@grst/tsconfig", "version": "0.0.0", "private": true, "files": ["base.json"] }
+{ "name": "@veemon/tsconfig", "version": "0.0.0", "private": true, "files": ["base.json"] }
 ```
 
 - [ ] **Step 3: `packages/tsconfig/base.json`**
@@ -201,13 +201,13 @@ Expected: `bun.lock` created, `node_modules` populated, `concurrently`/`typescri
 - Modify: `buf.gen.yaml` (add TS output)
 
 **Interfaces:**
-- Produces: `@grst/api-client` exporting `createApiClient(opts: ApiClientOptions): ApiClient`, `ApiError`, and generated message types. `ApiClientOptions = { baseUrl: string; getToken?: () => string | null | Promise<string|null>; fetch?: typeof fetch }`. `ApiClient` methods: `login`, `register`, `refreshToken`, `getMe`, `logout`, `listUsers`.
+- Produces: `@veemon/api-client` exporting `createApiClient(opts: ApiClientOptions): ApiClient`, `ApiError`, and generated message types. `ApiClientOptions = { baseUrl: string; getToken?: () => string | null | Promise<string|null>; fetch?: typeof fetch }`. `ApiClient` methods: `login`, `register`, `refreshToken`, `getMe`, `logout`, `listUsers`.
 
 - [ ] **Step 1: `packages/api-client/package.json`**
 
 ```json
 {
-  "name": "@grst/api-client",
+  "name": "@veemon/api-client",
   "version": "0.0.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -219,7 +219,7 @@ Expected: `bun.lock` created, `node_modules` populated, `concurrently`/`typescri
     "typecheck": "tsc --noEmit"
   },
   "dependencies": { "@bufbuild/protobuf": "^2.2.3" },
-  "devDependencies": { "@bufbuild/protoc-gen-es": "^2.2.3", "@grst/tsconfig": "*", "typescript": "^5.7.0" }
+  "devDependencies": { "@bufbuild/protoc-gen-es": "^2.2.3", "@veemon/tsconfig": "*", "typescript": "^5.7.0" }
 }
 ```
 
@@ -227,11 +227,11 @@ Expected: `bun.lock` created, `node_modules` populated, `concurrently`/`typescri
 
 `tsconfig.json`:
 ```json
-{ "extends": "@grst/tsconfig/base.json", "compilerOptions": { "noEmit": true }, "include": ["src"] }
+{ "extends": "@veemon/tsconfig/base.json", "compilerOptions": { "noEmit": true }, "include": ["src"] }
 ```
 `tsconfig.build.json`:
 ```json
-{ "extends": "@grst/tsconfig/base.json", "compilerOptions": { "outDir": "dist", "declaration": true, "noEmit": false }, "include": ["src"], "exclude": ["src/**/*.test.ts"] }
+{ "extends": "@veemon/tsconfig/base.json", "compilerOptions": { "outDir": "dist", "declaration": true, "noEmit": false }, "include": ["src"], "exclude": ["src/**/*.test.ts"] }
 ```
 
 - [ ] **Step 3: Add TS output to root `buf.gen.yaml`** (append plugin)
@@ -251,11 +251,11 @@ bun install
 make -C apps/api proto   # now emits Go (apps/api) AND TS (packages/api-client/src/gen)
 ls packages/api-client/src/gen
 ```
-Expected: `user_pb.ts` (and `grst/annotations_pb.ts`) generated.
+Expected: `user_pb.ts` (and `veemon/annotations_pb.ts`) generated.
 
 - [ ] **Step 5: Write `src/client.ts`** — typed REST client over the Fiber routes.
 
-Reads the `grst.route` paths from the proto (documented in `contract/user/user.proto`). Decodes the `{ success, data, meta }` / `{ success, error }` envelope. (Exact request/response field names come from generated `src/gen/user_pb.ts`; map JSON via camelCase per `pkg/response`.)
+Reads the `veemon.route` paths from the proto (documented in `contract/user/user.proto`). Decodes the `{ success, data, meta }` / `{ success, error }` envelope. (Exact request/response field names come from generated `src/gen/user_pb.ts`; map JSON via camelCase per `pkg/response`.)
 
 ```ts
 import type { Message } from "@bufbuild/protobuf";
@@ -292,7 +292,7 @@ export function createApiClient(opts: ApiClientOptions) {
 export type ApiClient = ReturnType<typeof createApiClient>;
 ```
 
-> NOTE: verify the exact route paths against `apps/api/handler/grpc/user/user_fiber.pb.go` (the `grst.route` `path` values) during execution and correct the strings above to match.
+> NOTE: verify the exact route paths against `apps/api/handler/grpc/user/user_fiber.pb.go` (the `veemon.route` `path` values) during execution and correct the strings above to match.
 
 - [ ] **Step 6: `src/index.ts`**
 
@@ -340,7 +340,7 @@ Expected: 3 tests pass, `dist/index.js` + `.d.ts` emitted.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add -A && git commit -m "feat: add @grst/api-client (generated types + typed REST client)"
+git add -A && git commit -m "feat: add @veemon/api-client (generated types + typed REST client)"
 ```
 
 ---
@@ -350,14 +350,14 @@ git add -A && git commit -m "feat: add @grst/api-client (generated types + typed
 **Files:** Create under `apps/web/`: `package.json`, `tsconfig.json`, `vite.config.ts`, `index.html`, `src/main.tsx`, `src/routes/{__root,index,login,me}.tsx`, `src/lib/{api.ts,auth.ts}`, `src/styles.css`, `.env.example`, and `src-tauri/{Cargo.toml,tauri.conf.json,build.rs,src/main.rs,src/lib.rs}`. Plus a route test `src/lib/api.test.ts`.
 
 **Interfaces:**
-- Consumes: `@grst/api-client` (`createApiClient`, `ApiError`).
+- Consumes: `@veemon/api-client` (`createApiClient`, `ApiError`).
 - Produces: browser-buildable Vite app; Tauri shell files (Rust compile deferred).
 
 - [ ] **Step 1: `apps/web/package.json`**
 
 ```json
 {
-  "name": "@grst/web",
+  "name": "@veemon/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -370,14 +370,14 @@ git add -A && git commit -m "feat: add @grst/api-client (generated types + typed
     "tauri:build": "tauri build"
   },
   "dependencies": {
-    "@grst/api-client": "*",
+    "@veemon/api-client": "*",
     "@tanstack/react-query": "^5.62.0",
     "@tanstack/react-router": "^1.87.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@grst/tsconfig": "*",
+    "@veemon/tsconfig": "*",
     "@tanstack/router-plugin": "^1.87.0",
     "@tauri-apps/cli": "^2.1.0",
     "@types/react": "^19.0.0",
@@ -393,7 +393,7 @@ git add -A && git commit -m "feat: add @grst/api-client (generated types + typed
 
 `tsconfig.json`:
 ```json
-{ "extends": "@grst/tsconfig/base.json", "compilerOptions": { "jsx": "react-jsx", "noEmit": true, "types": ["vite/client"] }, "include": ["src"] }
+{ "extends": "@veemon/tsconfig/base.json", "compilerOptions": { "jsx": "react-jsx", "noEmit": true, "types": ["vite/client"] }, "include": ["src"] }
 ```
 `vite.config.ts`:
 ```ts
@@ -408,7 +408,7 @@ export default defineConfig({
 ```
 `index.html`:
 ```html
-<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>@grst/web</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>@veemon/web</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
 ```
 `src/styles.css`: minimal reset (body font, container spacing).
 
@@ -416,14 +416,14 @@ export default defineConfig({
 
 `auth.ts`:
 ```ts
-const KEY = "grst.token";
+const KEY = "veemon.token";
 export const getToken = () => localStorage.getItem(KEY);
 export const setToken = (t: string) => localStorage.setItem(KEY, t);
 export const clearToken = () => localStorage.removeItem(KEY);
 ```
 `api.ts`:
 ```ts
-import { createApiClient } from "@grst/api-client";
+import { createApiClient } from "@veemon/api-client";
 import { getToken } from "./auth";
 export const api = createApiClient({
   baseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000",
@@ -465,8 +465,8 @@ git add -A && git commit -m "feat: scaffold apps/web (React + TanStack Router + 
 **Files:** Create under `apps/ai/`: `package.json`, `tsconfig.json`, `.env.example`, `src/mastra/index.ts`, `src/mastra/tools/user-tools.ts`, `src/mastra/agents/assistant-agent.ts`, `src/mastra/workflows/example-workflow.ts`, `src/mastra/tools/user-tools.test.ts`.
 
 **Interfaces:**
-- Consumes: `@grst/api-client`.
-- Produces: `@grst/ai` Mastra project; `userTools` (createTool) calling the API; `assistantAgent`; `mastra` instance.
+- Consumes: `@veemon/api-client`.
+- Produces: `@veemon/ai` Mastra project; `userTools` (createTool) calling the API; `assistantAgent`; `mastra` instance.
 
 > Verify current Mastra APIs from `node_modules/@mastra/core/dist/docs` after install; correct constructor/tool signatures if they differ from below.
 
@@ -474,20 +474,20 @@ git add -A && git commit -m "feat: scaffold apps/web (React + TanStack Router + 
 
 ```json
 {
-  "name": "@grst/ai",
+  "name": "@veemon/ai",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": { "dev": "mastra dev", "build": "mastra build", "test": "bun test", "typecheck": "tsc --noEmit" },
-  "dependencies": { "@grst/api-client": "*", "@mastra/core": "latest", "zod": "^4.0.0" },
-  "devDependencies": { "@grst/tsconfig": "*", "mastra": "latest", "typescript": "^5.7.0" }
+  "dependencies": { "@veemon/api-client": "*", "@mastra/core": "latest", "zod": "^4.0.0" },
+  "devDependencies": { "@veemon/tsconfig": "*", "mastra": "latest", "typescript": "^5.7.0" }
 }
 ```
 
 - [ ] **Step 2: `tsconfig.json`**
 
 ```json
-{ "extends": "@grst/tsconfig/base.json", "compilerOptions": { "noEmit": true, "outDir": "dist" }, "include": ["src"] }
+{ "extends": "@veemon/tsconfig/base.json", "compilerOptions": { "noEmit": true, "outDir": "dist" }, "include": ["src"] }
 ```
 
 - [ ] **Step 3: `.env.example`**
@@ -498,12 +498,12 @@ API_BASE_URL=http://localhost:3000
 API_SERVICE_TOKEN=
 ```
 
-- [ ] **Step 4: `src/mastra/tools/user-tools.ts`** — a `createTool` wrapping `@grst/api-client`.
+- [ ] **Step 4: `src/mastra/tools/user-tools.ts`** — a `createTool` wrapping `@veemon/api-client`.
 
 ```ts
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
-import { createApiClient } from "@grst/api-client";
+import { createApiClient } from "@veemon/api-client";
 
 const api = createApiClient({
   baseUrl: process.env.API_BASE_URL ?? "http://localhost:3000",
@@ -526,11 +526,11 @@ export const listUsersTool = createTool({
 
 Agent: `new Agent({ id, name, instructions, model: process.env model or "anthropic/claude-sonnet-4-5", tools: { listUsersTool } })`. Workflow: one sample step. `index.ts`: `export const mastra = new Mastra({ agents: { assistantAgent }, workflows: { exampleWorkflow } })`. (Model id verified via Mastra provider registry at execution.)
 
-- [ ] **Step 6: Failing test `tools/user-tools.test.ts`** — mock `@grst/api-client` and assert `listUsersTool.execute` returns mapped users.
+- [ ] **Step 6: Failing test `tools/user-tools.test.ts`** — mock `@veemon/api-client` and assert `listUsersTool.execute` returns mapped users.
 
 ```ts
 import { describe, it, expect, mock } from "bun:test";
-mock.module("@grst/api-client", () => ({ createApiClient: () => ({ listUsers: async () => ({ users: [{ id: "1" }] }) }) }));
+mock.module("@veemon/api-client", () => ({ createApiClient: () => ({ listUsers: async () => ({ users: [{ id: "1" }] }) }) }));
 const { listUsersTool } = await import("./user-tools.js");
 describe("listUsersTool", () => {
   it("returns users from the api", async () => {
@@ -560,7 +560,7 @@ git add -A && git commit -m "feat: scaffold apps/ai (Mastra agent + api-client t
 
 **Files:** Modify `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `README.md`, `claude.md`; create `apps/web/README.md`, `apps/ai/README.md` (short).
 
-- [ ] **Step 1: `ci.yml`** — set the Go job `defaults.run.working-directory: apps/api` (or prefix `working-directory` per step) and add `paths` filters. Add a `web-ai` job: `oven-sh/setup-bun`, `bun install`, `bun --filter '@grst/api-client' --filter '@grst/web' --filter '@grst/ai' run test`, and `bun run build:client`.
+- [ ] **Step 1: `ci.yml`** — set the Go job `defaults.run.working-directory: apps/api` (or prefix `working-directory` per step) and add `paths` filters. Add a `web-ai` job: `oven-sh/setup-bun`, `bun install`, `bun --filter '@veemon/api-client' --filter '@veemon/web' --filter '@veemon/ai' run test`, and `bun run build:client`.
 
 - [ ] **Step 2: `release.yml`** — prefix Go build paths with `apps/api` (`working-directory: apps/api`, outputs to repo `bin/`).
 
@@ -573,7 +573,7 @@ git add -A && git commit -m "feat: scaffold apps/ai (Mastra agent + api-client t
 ```bash
 make -C apps/api proto && (cd apps/api && go build ./... && go test -race ./...) \
   && bun install && bun run build:client \
-  && bun --filter '@grst/api-client' --filter '@grst/ai' run test \
+  && bun --filter '@veemon/api-client' --filter '@veemon/ai' run test \
   && (cd apps/web && bun run build)
 ```
 Expected: Go green; api-client builds + tests; ai tests; web browser build emits `dist/`.

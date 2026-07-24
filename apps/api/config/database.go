@@ -3,7 +3,7 @@ package config
 import (
 	"time"
 
-	"go-grst-boilerplate/pkg/database"
+	"veemon/pkg/database"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"

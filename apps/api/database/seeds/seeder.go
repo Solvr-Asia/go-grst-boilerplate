@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"go-grst-boilerplate/entity"
+	"veemon/entity"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"

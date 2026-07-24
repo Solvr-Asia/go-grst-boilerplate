@@ -1,5 +1,5 @@
 // Command protoc-gen-fiber is a protoc/buf plugin that generates Go Fiber route
-// registration from the grst.route options declared on each RPC in a .proto
+// registration from the veemon.route options declared on each RPC in a .proto
 // file. It lets the proto contract be the single source of truth for a
 // service's REST surface: method, path, path/query/body binding, auth policy,
 // and per-route rate limiting.
@@ -19,15 +19,15 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
-	grst "go-grst-boilerplate/handler/grpc/grst"
+	veemon "veemon/handler/grpc/veemon"
 )
 
 // Import paths referenced by generated code.
 const (
 	fiberPkg      = protogen.GoImportPath("github.com/gofiber/fiber/v2")
-	middlewarePkg = protogen.GoImportPath("go-grst-boilerplate/pkg/middleware")
-	responsePkg   = protogen.GoImportPath("go-grst-boilerplate/pkg/response")
-	errorsPkg     = protogen.GoImportPath("go-grst-boilerplate/pkg/errors")
+	middlewarePkg = protogen.GoImportPath("veemon/pkg/middleware")
+	responsePkg   = protogen.GoImportPath("veemon/pkg/response")
+	errorsPkg     = protogen.GoImportPath("veemon/pkg/errors")
 	protoPkg      = protogen.GoImportPath("google.golang.org/protobuf/proto")
 	contextPkg    = protogen.GoImportPath("context")
 	timePkg       = protogen.GoImportPath("time")
@@ -52,14 +52,14 @@ func main() {
 	})
 }
 
-// routeFor returns the grst.route option attached to a method, or nil.
-func routeFor(m *protogen.Method) *grst.Route {
+// routeFor returns the veemon.route option attached to a method, or nil.
+func routeFor(m *protogen.Method) *veemon.Route {
 	opts := m.Desc.Options()
 	if opts == nil {
 		return nil
 	}
-	ext := proto.GetExtension(opts, grst.E_Route)
-	r, _ := ext.(*grst.Route)
+	ext := proto.GetExtension(opts, veemon.E_Route)
+	r, _ := ext.(*veemon.Route)
 	if r == nil || r.GetPath() == "" {
 		return nil
 	}
@@ -99,7 +99,7 @@ func generateService(g *protogen.GeneratedFile, svc *protogen.Service) error {
 	// Collect methods that declare a route, in declaration order.
 	type routed struct {
 		m *protogen.Method
-		r *grst.Route
+		r *veemon.Route
 	}
 	var routes []routed
 	for _, m := range svc.Methods {
@@ -123,7 +123,7 @@ func generateService(g *protogen.GeneratedFile, svc *protogen.Service) error {
 
 	// --- gRPC auth map (shared with the gRPC interceptor) ---
 	g.P("// ", svcName, "AuthConfig maps each gRPC full-method name to its auth policy.")
-	g.P("// It is derived from the grst.route auth options and consumed by the gRPC")
+	g.P("// It is derived from the veemon.route auth options and consumed by the gRPC")
 	g.P("// auth interceptor so gRPC and REST enforce the same rules.")
 	g.P("var ", svcName, "AuthConfig = map[string]", authConfig, "{")
 	for _, rt := range routes {
@@ -195,7 +195,7 @@ func generateService(g *protogen.GeneratedFile, svc *protogen.Service) error {
 	return nil
 }
 
-func generateHandler(g *protogen.GeneratedFile, svcName string, m *protogen.Method, r *grst.Route) {
+func generateHandler(g *protogen.GeneratedFile, svcName string, m *protogen.Method, r *veemon.Route) {
 	fiberCtx := g.QualifiedGoIdent(fiberPkg.Ident("Ctx"))
 	fiberHandler := g.QualifiedGoIdent(fiberPkg.Ident("Handler"))
 	reqType := g.QualifiedGoIdent(m.Input.GoIdent)
@@ -239,7 +239,7 @@ func generateHandler(g *protogen.GeneratedFile, svcName string, m *protogen.Meth
 
 // bindPathParams emits assignments from Fiber path params to request fields and
 // returns the set of field json names it consumed.
-func bindPathParams(g *protogen.GeneratedFile, m *protogen.Method, r *grst.Route) map[string]bool {
+func bindPathParams(g *protogen.GeneratedFile, m *protogen.Method, r *veemon.Route) map[string]bool {
 	consumed := map[string]bool{}
 	for _, name := range pathParamNames(r.GetPath()) {
 		field := findField(m.Input, name)
@@ -274,11 +274,11 @@ func bindQueryParams(g *protogen.GeneratedFile, m *protogen.Method, skip map[str
 	}
 }
 
-func writeResponse(g *protogen.GeneratedFile, m *protogen.Method, r *grst.Route) {
+func writeResponse(g *protogen.GeneratedFile, m *protogen.Method, r *veemon.Route) {
 	switch r.GetResponse() {
-	case grst.ResponseStyle_RESPONSE_STYLE_CREATED:
+	case veemon.ResponseStyle_RESPONSE_STYLE_CREATED:
 		g.P("\t\treturn ", g.QualifiedGoIdent(responsePkg.Ident("CreatedProto")), "(c, res)")
-	case grst.ResponseStyle_RESPONSE_STYLE_LIST:
+	case veemon.ResponseStyle_RESPONSE_STYLE_LIST:
 		listField, metaField := listFields(m.Output)
 		if listField == nil {
 			// Fall back to a plain envelope if the message is not list-shaped.
@@ -302,12 +302,12 @@ func writeResponse(g *protogen.GeneratedFile, m *protogen.Method, r *grst.Route)
 
 // --- helpers ---
 
-func needAuth(r *grst.Route) bool {
+func needAuth(r *veemon.Route) bool {
 	a := r.GetAuth()
 	return a != nil && (a.GetRequired() || len(a.GetRoles()) > 0)
 }
 
-func authConfigLiteral(g *protogen.GeneratedFile, r *grst.Route) string {
+func authConfigLiteral(g *protogen.GeneratedFile, r *veemon.Route) string {
 	authConfig := g.QualifiedGoIdent(middlewarePkg.Ident("AuthConfig"))
 	a := r.GetAuth()
 	if a == nil || (!a.GetRequired() && len(a.GetRoles()) == 0) {

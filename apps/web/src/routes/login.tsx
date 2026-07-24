@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ApiError } from "@grst/api-client";
+import { ApiError } from "@veemon/api-client";
 import { api } from "../lib/api";
 import { setToken } from "../lib/auth";
 

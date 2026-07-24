@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"go-grst-boilerplate/entity"
-	"go-grst-boilerplate/repository/user_repository"
+	"veemon/entity"
+	"veemon/repository/user_repository"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

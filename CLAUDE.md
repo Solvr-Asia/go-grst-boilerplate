@@ -1,4 +1,4 @@
-# Claude Code Guidelines for Go-GRST-Boilerplate
+# Claude Code Guidelines for Veemon
 
 This file is the **index** for AI-assistant guidance. The detailed standards,
 rules, agents, and skills live under [`.claude/`](.claude/) so each concern is a

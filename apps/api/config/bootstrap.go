@@ -4,18 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"go-grst-boilerplate/app/usecase/user"
-	"go-grst-boilerplate/docs"
-	"go-grst-boilerplate/handler"
-	pb_user "go-grst-boilerplate/handler/grpc/user"
-	"go-grst-boilerplate/pkg/authguard"
-	"go-grst-boilerplate/pkg/errors"
-	"go-grst-boilerplate/pkg/metrics"
-	"go-grst-boilerplate/pkg/middleware"
-	"go-grst-boilerplate/pkg/rabbitmq"
-	"go-grst-boilerplate/pkg/redis"
-	"go-grst-boilerplate/pkg/token"
-	"go-grst-boilerplate/repository/user_repository"
+	"veemon/app/usecase/user"
+	"veemon/docs"
+	"veemon/handler"
+	pb_user "veemon/handler/grpc/user"
+	"veemon/pkg/authguard"
+	"veemon/pkg/errors"
+	"veemon/pkg/metrics"
+	"veemon/pkg/middleware"
+	"veemon/pkg/rabbitmq"
+	"veemon/pkg/redis"
+	"veemon/pkg/token"
+	"veemon/repository/user_repository"
 
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -62,7 +62,7 @@ func Bootstrap(b *BootstrapConfig) (*BootstrapResult, error) {
 	// Health check
 	registerHealthChecks(b)
 
-	// HTTP routes (generated from grst.route options in the .proto).
+	// HTTP routes (generated from veemon.route options in the .proto).
 	pb_user.RegisterUserApiRoutes(b.App, userHandler, tokenValidator)
 
 	// gRPC server. Interceptor order (outermost first): recovery catches panics

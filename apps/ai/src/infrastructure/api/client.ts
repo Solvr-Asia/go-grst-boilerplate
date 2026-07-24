@@ -1,4 +1,4 @@
-import { createApiClient, type ApiClient } from "@grst/api-client";
+import { createApiClient, type ApiClient } from "@veemon/api-client";
 import type { Config } from "../../config";
 
 // The shared typed REST client the AI service uses to reach the Go API. The AI

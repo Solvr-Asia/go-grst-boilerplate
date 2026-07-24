@@ -1,4 +1,4 @@
-import { createApiClient } from "@grst/api-client";
+import { createApiClient } from "@veemon/api-client";
 import { getToken } from "./auth";
 
 // Single configured client instance for the whole app. Base URL comes from the

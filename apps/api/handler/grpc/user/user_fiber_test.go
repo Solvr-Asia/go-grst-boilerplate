@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"go-grst-boilerplate/pkg/middleware"
+	"veemon/pkg/middleware"
 
 	"github.com/gofiber/fiber/v2"
 	"google.golang.org/protobuf/types/known/emptypb"

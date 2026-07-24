@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"go-grst-boilerplate/config"
-	"go-grst-boilerplate/pkg/rabbitmq"
+	"veemon/config"
+	"veemon/pkg/rabbitmq"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.uber.org/zap"

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"go-grst-boilerplate/entity"
+	"veemon/entity"
 
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"

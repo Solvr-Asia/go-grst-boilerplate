@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ApiError } from "@grst/api-client";
+import { ApiError } from "@veemon/api-client";
 import { api } from "../lib/api";
 import { clearToken, getToken } from "../lib/auth";
 

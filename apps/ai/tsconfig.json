@@ -1,5 +1,5 @@
 {
-  "extends": "@grst/tsconfig/base.json",
+  "extends": "@veemon/tsconfig/base.json",
   "compilerOptions": {
     "noEmit": true,
     "outDir": "dist"

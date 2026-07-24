@@ -4,7 +4,7 @@ package user_repository
 import (
 	"context"
 
-	"go-grst-boilerplate/entity"
+	"veemon/entity"
 
 	"gorm.io/gorm"
 )

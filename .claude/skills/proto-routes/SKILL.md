@@ -12,14 +12,14 @@ Method, path, binding, auth policy, and rate limits all live in the contract.
 ## Steps
 
 1. **Edit the contract.** In `contract/<svc>/<svc>.proto`, define the RPC +
-   messages and annotate the method with a `grst.route` option:
+   messages and annotate the method with a `veemon.route` option:
 
    ```proto
-   import "grst/annotations.proto";
+   import "veemon/annotations.proto";
 
    service UserApi {
        rpc GetUser(GetUserReq) returns (UserProfile) {
-           option (grst.route) = {
+           option (veemon.route) = {
                method: "GET"
                path: "/api/v1/users/{id}"          // {id} binds to request field `id`
                auth: { required: true roles: ["admin", "superadmin"] }
@@ -27,7 +27,7 @@ Method, path, binding, auth policy, and rate limits all live in the contract.
        }
 
        rpc Register(RegisterReq) returns (RegisterRes) {
-           option (grst.route) = {
+           option (veemon.route) = {
                method: "POST"
                path: "/api/v1/auth/register"
                body: true                          // parse JSON body into the request
@@ -56,6 +56,6 @@ Method, path, binding, auth policy, and rate limits all live in the contract.
 - Never add a Fiber route or edit the auth map by hand — change the proto and
   regenerate (see [architecture](../../rules/architecture.md)).
 - Auth is **fail-closed**: a route with no explicit policy panics at startup.
-- Options reference (`contract/grst/annotations.proto`): `method`, `path`,
+- Options reference (`contract/veemon/annotations.proto`): `method`, `path`,
   `body`, `auth { required, roles }`, `response`
   (`RESPONSE_STYLE_OK|_CREATED|_LIST`), `rate_limit { max, window_seconds }`.

@@ -60,4 +60,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - go-grst-boilerplate
+        - veemon

@@ -150,7 +150,7 @@ func bindEnvs(v *viper.Viper) {
 
 func setDefaults(v *viper.Viper) {
 	// Service
-	v.SetDefault("SERVICE_NAME", "go-grst-boilerplate")
+	v.SetDefault("SERVICE_NAME", "veemon")
 	v.SetDefault("ENVIRONMENT", "development")
 
 	// HTTP/gRPC
@@ -167,7 +167,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("DB_PORT", 5432)
 	v.SetDefault("DB_USER", "postgres")
 	v.SetDefault("DB_PASSWORD", "postgres")
-	v.SetDefault("DB_NAME", "go_grst_db")
+	v.SetDefault("DB_NAME", "veemon_db")
 	v.SetDefault("DB_TIMEZONE", "Asia/Jakarta")
 	v.SetDefault("DB_SSL_MODE", "disable")
 
@@ -218,7 +218,7 @@ func setDefaults(v *viper.Viper) {
 	// OpenTelemetry
 	v.SetDefault("OTEL_ENABLED", true)
 	v.SetDefault("OTEL_ENDPOINT", "localhost:4317")
-	v.SetDefault("OTEL_SERVICE_NAME", "go-grst-boilerplate")
+	v.SetDefault("OTEL_SERVICE_NAME", "veemon")
 	v.SetDefault("OTEL_EXPORTER_TYPE", "noop")
 	v.SetDefault("OTEL_SAMPLE_RATIO", 1.0)
 

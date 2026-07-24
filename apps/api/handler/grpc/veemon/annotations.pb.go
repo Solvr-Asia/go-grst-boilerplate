@@ -2,15 +2,15 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        (unknown)
-// source: grst/annotations.proto
+// source: veemon/annotations.proto
 
-// Package grst defines custom protobuf options used by this boilerplate to
+// Package veemon defines custom protobuf options used by this boilerplate to
 // declare a service's HTTP surface directly on each RPC. The protoc-gen-fiber
 // plugin reads these options and generates the Go Fiber route registration, so
 // the .proto is the single source of truth for method, path, auth, and rate
 // limiting — no hand-written route tables.
 
-package grst
+package veemon
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -66,11 +66,11 @@ func (x ResponseStyle) String() string {
 }
 
 func (ResponseStyle) Descriptor() protoreflect.EnumDescriptor {
-	return file_grst_annotations_proto_enumTypes[0].Descriptor()
+	return file_veemon_annotations_proto_enumTypes[0].Descriptor()
 }
 
 func (ResponseStyle) Type() protoreflect.EnumType {
-	return &file_grst_annotations_proto_enumTypes[0]
+	return &file_veemon_annotations_proto_enumTypes[0]
 }
 
 func (x ResponseStyle) Number() protoreflect.EnumNumber {
@@ -79,13 +79,13 @@ func (x ResponseStyle) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ResponseStyle.Descriptor instead.
 func (ResponseStyle) EnumDescriptor() ([]byte, []int) {
-	return file_grst_annotations_proto_rawDescGZIP(), []int{0}
+	return file_veemon_annotations_proto_rawDescGZIP(), []int{0}
 }
 
 // Route declares how an RPC is exposed over REST. Attach it to a method:
 //
 //	rpc GetUser(GetUserReq) returns (UserProfile) {
-//	  option (grst.route) = {
+//	  option (veemon.route) = {
 //	    method: "GET"
 //	    path: "/api/v1/users/{id}"
 //	    auth: { required: true, roles: ["admin", "superadmin"] }
@@ -108,7 +108,7 @@ type Route struct {
 	// Authentication/authorization policy for this route. Absent means public.
 	Auth *Auth `protobuf:"bytes,4,opt,name=auth,proto3" json:"auth,omitempty"`
 	// How the successful response is written. Defaults to a 200 OK envelope.
-	Response ResponseStyle `protobuf:"varint,5,opt,name=response,proto3,enum=grst.ResponseStyle" json:"response,omitempty"`
+	Response ResponseStyle `protobuf:"varint,5,opt,name=response,proto3,enum=veemon.ResponseStyle" json:"response,omitempty"`
 	// Optional per-route rate limit applied before the handler. Useful for
 	// unauthenticated credential endpoints (login/register) to blunt brute force.
 	RateLimit     *RateLimit `protobuf:"bytes,6,opt,name=rate_limit,json=rateLimit,proto3" json:"rate_limit,omitempty"`
@@ -118,7 +118,7 @@ type Route struct {
 
 func (x *Route) Reset() {
 	*x = Route{}
-	mi := &file_grst_annotations_proto_msgTypes[0]
+	mi := &file_veemon_annotations_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -130,7 +130,7 @@ func (x *Route) String() string {
 func (*Route) ProtoMessage() {}
 
 func (x *Route) ProtoReflect() protoreflect.Message {
-	mi := &file_grst_annotations_proto_msgTypes[0]
+	mi := &file_veemon_annotations_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -143,7 +143,7 @@ func (x *Route) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Route.ProtoReflect.Descriptor instead.
 func (*Route) Descriptor() ([]byte, []int) {
-	return file_grst_annotations_proto_rawDescGZIP(), []int{0}
+	return file_veemon_annotations_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Route) GetMethod() string {
@@ -202,7 +202,7 @@ type Auth struct {
 
 func (x *Auth) Reset() {
 	*x = Auth{}
-	mi := &file_grst_annotations_proto_msgTypes[1]
+	mi := &file_veemon_annotations_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -214,7 +214,7 @@ func (x *Auth) String() string {
 func (*Auth) ProtoMessage() {}
 
 func (x *Auth) ProtoReflect() protoreflect.Message {
-	mi := &file_grst_annotations_proto_msgTypes[1]
+	mi := &file_veemon_annotations_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -227,7 +227,7 @@ func (x *Auth) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Auth.ProtoReflect.Descriptor instead.
 func (*Auth) Descriptor() ([]byte, []int) {
-	return file_grst_annotations_proto_rawDescGZIP(), []int{1}
+	return file_veemon_annotations_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Auth) GetRequired() bool {
@@ -257,7 +257,7 @@ type RateLimit struct {
 
 func (x *RateLimit) Reset() {
 	*x = RateLimit{}
-	mi := &file_grst_annotations_proto_msgTypes[2]
+	mi := &file_veemon_annotations_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -269,7 +269,7 @@ func (x *RateLimit) String() string {
 func (*RateLimit) ProtoMessage() {}
 
 func (x *RateLimit) ProtoReflect() protoreflect.Message {
-	mi := &file_grst_annotations_proto_msgTypes[2]
+	mi := &file_veemon_annotations_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -282,7 +282,7 @@ func (x *RateLimit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RateLimit.ProtoReflect.Descriptor instead.
 func (*RateLimit) Descriptor() ([]byte, []int) {
-	return file_grst_annotations_proto_rawDescGZIP(), []int{2}
+	return file_veemon_annotations_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *RateLimit) GetMax() uint32 {
@@ -299,14 +299,14 @@ func (x *RateLimit) GetWindowSeconds() uint32 {
 	return 0
 }
 
-var file_grst_annotations_proto_extTypes = []protoimpl.ExtensionInfo{
+var file_veemon_annotations_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
 		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
 		ExtensionType: (*Route)(nil),
 		Field:         50123,
-		Name:          "grst.route",
+		Name:          "veemon.route",
 		Tag:           "bytes,50123,opt,name=route",
-		Filename:      "grst/annotations.proto",
+		Filename:      "veemon/annotations.proto",
 	},
 }
 
@@ -314,24 +314,23 @@ var file_grst_annotations_proto_extTypes = []protoimpl.ExtensionInfo{
 var (
 	// Field number in the internal (50000-99999) extension range.
 	//
-	// optional grst.Route route = 50123;
-	E_Route = &file_grst_annotations_proto_extTypes[0]
+	// optional veemon.Route route = 50123;
+	E_Route = &file_veemon_annotations_proto_extTypes[0]
 )
 
-var File_grst_annotations_proto protoreflect.FileDescriptor
+var File_veemon_annotations_proto protoreflect.FileDescriptor
 
-const file_grst_annotations_proto_rawDesc = "" +
+const file_veemon_annotations_proto_rawDesc = "" +
 	"\n" +
-	"\x16grst/annotations.proto\x12\x04grst\x1a google/protobuf/descriptor.proto\"\xc8\x01\n" +
+	"\x18veemon/annotations.proto\x12\x06veemon\x1a google/protobuf/descriptor.proto\"\xce\x01\n" +
 	"\x05Route\x12\x16\n" +
 	"\x06method\x18\x01 \x01(\tR\x06method\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x12\n" +
-	"\x04body\x18\x03 \x01(\bR\x04body\x12\x1e\n" +
-	"\x04auth\x18\x04 \x01(\v2\n" +
-	".grst.AuthR\x04auth\x12/\n" +
-	"\bresponse\x18\x05 \x01(\x0e2\x13.grst.ResponseStyleR\bresponse\x12.\n" +
+	"\x04body\x18\x03 \x01(\bR\x04body\x12 \n" +
+	"\x04auth\x18\x04 \x01(\v2\f.veemon.AuthR\x04auth\x121\n" +
+	"\bresponse\x18\x05 \x01(\x0e2\x15.veemon.ResponseStyleR\bresponse\x120\n" +
 	"\n" +
-	"rate_limit\x18\x06 \x01(\v2\x0f.grst.RateLimitR\trateLimit\"8\n" +
+	"rate_limit\x18\x06 \x01(\v2\x11.veemon.RateLimitR\trateLimit\"8\n" +
 	"\x04Auth\x12\x1a\n" +
 	"\brequired\x18\x01 \x01(\bR\brequired\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\"D\n" +
@@ -341,36 +340,36 @@ const file_grst_annotations_proto_rawDesc = "" +
 	"\rResponseStyle\x12\x15\n" +
 	"\x11RESPONSE_STYLE_OK\x10\x00\x12\x1a\n" +
 	"\x16RESPONSE_STYLE_CREATED\x10\x01\x12\x17\n" +
-	"\x13RESPONSE_STYLE_LIST\x10\x02:C\n" +
-	"\x05route\x12\x1e.google.protobuf.MethodOptions\x18ˇ\x03 \x01(\v2\v.grst.RouteR\x05routeB,Z*go-grst-boilerplate/handler/grpc/grst;grstb\x06proto3"
+	"\x13RESPONSE_STYLE_LIST\x10\x02:E\n" +
+	"\x05route\x12\x1e.google.protobuf.MethodOptions\x18ˇ\x03 \x01(\v2\r.veemon.RouteR\x05routeB#Z!veemon/handler/grpc/veemon;veemonb\x06proto3"
 
 var (
-	file_grst_annotations_proto_rawDescOnce sync.Once
-	file_grst_annotations_proto_rawDescData []byte
+	file_veemon_annotations_proto_rawDescOnce sync.Once
+	file_veemon_annotations_proto_rawDescData []byte
 )
 
-func file_grst_annotations_proto_rawDescGZIP() []byte {
-	file_grst_annotations_proto_rawDescOnce.Do(func() {
-		file_grst_annotations_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_grst_annotations_proto_rawDesc), len(file_grst_annotations_proto_rawDesc)))
+func file_veemon_annotations_proto_rawDescGZIP() []byte {
+	file_veemon_annotations_proto_rawDescOnce.Do(func() {
+		file_veemon_annotations_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_veemon_annotations_proto_rawDesc), len(file_veemon_annotations_proto_rawDesc)))
 	})
-	return file_grst_annotations_proto_rawDescData
+	return file_veemon_annotations_proto_rawDescData
 }
 
-var file_grst_annotations_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_grst_annotations_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_grst_annotations_proto_goTypes = []any{
-	(ResponseStyle)(0),                 // 0: grst.ResponseStyle
-	(*Route)(nil),                      // 1: grst.Route
-	(*Auth)(nil),                       // 2: grst.Auth
-	(*RateLimit)(nil),                  // 3: grst.RateLimit
+var file_veemon_annotations_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_veemon_annotations_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_veemon_annotations_proto_goTypes = []any{
+	(ResponseStyle)(0),                 // 0: veemon.ResponseStyle
+	(*Route)(nil),                      // 1: veemon.Route
+	(*Auth)(nil),                       // 2: veemon.Auth
+	(*RateLimit)(nil),                  // 3: veemon.RateLimit
 	(*descriptorpb.MethodOptions)(nil), // 4: google.protobuf.MethodOptions
 }
-var file_grst_annotations_proto_depIdxs = []int32{
-	2, // 0: grst.Route.auth:type_name -> grst.Auth
-	0, // 1: grst.Route.response:type_name -> grst.ResponseStyle
-	3, // 2: grst.Route.rate_limit:type_name -> grst.RateLimit
-	4, // 3: grst.route:extendee -> google.protobuf.MethodOptions
-	1, // 4: grst.route:type_name -> grst.Route
+var file_veemon_annotations_proto_depIdxs = []int32{
+	2, // 0: veemon.Route.auth:type_name -> veemon.Auth
+	0, // 1: veemon.Route.response:type_name -> veemon.ResponseStyle
+	3, // 2: veemon.Route.rate_limit:type_name -> veemon.RateLimit
+	4, // 3: veemon.route:extendee -> google.protobuf.MethodOptions
+	1, // 4: veemon.route:type_name -> veemon.Route
 	5, // [5:5] is the sub-list for method output_type
 	5, // [5:5] is the sub-list for method input_type
 	4, // [4:5] is the sub-list for extension type_name
@@ -378,28 +377,28 @@ var file_grst_annotations_proto_depIdxs = []int32{
 	0, // [0:3] is the sub-list for field type_name
 }
 
-func init() { file_grst_annotations_proto_init() }
-func file_grst_annotations_proto_init() {
-	if File_grst_annotations_proto != nil {
+func init() { file_veemon_annotations_proto_init() }
+func file_veemon_annotations_proto_init() {
+	if File_veemon_annotations_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_grst_annotations_proto_rawDesc), len(file_grst_annotations_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_veemon_annotations_proto_rawDesc), len(file_veemon_annotations_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   3,
 			NumExtensions: 1,
 			NumServices:   0,
 		},
-		GoTypes:           file_grst_annotations_proto_goTypes,
-		DependencyIndexes: file_grst_annotations_proto_depIdxs,
-		EnumInfos:         file_grst_annotations_proto_enumTypes,
-		MessageInfos:      file_grst_annotations_proto_msgTypes,
-		ExtensionInfos:    file_grst_annotations_proto_extTypes,
+		GoTypes:           file_veemon_annotations_proto_goTypes,
+		DependencyIndexes: file_veemon_annotations_proto_depIdxs,
+		EnumInfos:         file_veemon_annotations_proto_enumTypes,
+		MessageInfos:      file_veemon_annotations_proto_msgTypes,
+		ExtensionInfos:    file_veemon_annotations_proto_extTypes,
 	}.Build()
-	File_grst_annotations_proto = out.File
-	file_grst_annotations_proto_goTypes = nil
-	file_grst_annotations_proto_depIdxs = nil
+	File_veemon_annotations_proto = out.File
+	file_veemon_annotations_proto_goTypes = nil
+	file_veemon_annotations_proto_depIdxs = nil
 }

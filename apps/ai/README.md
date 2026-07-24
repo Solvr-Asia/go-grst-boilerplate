@@ -1,7 +1,7 @@
-# @grst/ai
+# @veemon/ai
 
 A [LangGraph.js](https://langchain-ai.github.io/langgraphjs/) service. Its agents
-and workflows reach the Go API (`apps/api`) through the shared `@grst/api-client`,
+and workflows reach the Go API (`apps/api`) through the shared `@veemon/api-client`,
 so the AI inherits the Go server's auth policy and validation — one API surface,
 three consumers. The graphs are served over a small [Hono](https://hono.dev)
 HTTP API (invoke + SSE stream), and thread state is persisted by a LangGraph
@@ -24,7 +24,7 @@ src/
     workflows/user-report.ts explicit StateGraph: fetch users -> report count
     graph.ts                 the Graph interface the HTTP layer consumes
   infrastructure/            adapters implementing the ports
-    api/                     @grst/api-client + UserDirectory adapter
+    api/                     @veemon/api-client + UserDirectory adapter
     llm/model.ts             ChatAnthropic factory
     checkpointer/            MemorySaver | PostgresSaver factory
   interface/http/server.ts   Hono routes (invoke + SSE stream)
@@ -37,8 +37,8 @@ src/
 
 ```bash
 bun install                          # from repo root
-bun run build:client                 # build @grst/api-client types (once)
-bun --filter @grst/ai run dev        # http://localhost:4111 (watch mode)
+bun run build:client                 # build @veemon/api-client types (once)
+bun --filter @veemon/ai run dev        # http://localhost:4111 (watch mode)
 ```
 
 Running the **agents** requires an Anthropic API key (`.env`, see `.env.example`);
@@ -86,6 +86,6 @@ See the header of `src/application/tools/list-users.ts`.
 ## Test / typecheck
 
 ```bash
-bun --filter @grst/ai run test       # tool logic against a fake UserDirectory
-bun --filter @grst/ai run typecheck  # tsc --noEmit
+bun --filter @veemon/ai run test       # tool logic against a fake UserDirectory
+bun --filter @veemon/ai run typecheck  # tsc --noEmit
 ```

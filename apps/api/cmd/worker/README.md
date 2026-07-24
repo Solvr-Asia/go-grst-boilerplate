@@ -28,7 +28,7 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=postgres
-DB_NAME=go_grst_db
+DB_NAME=veemon_db
 
 REDIS_HOST=localhost
 REDIS_PORT=6379
@@ -79,7 +79,7 @@ go run ./cmd/worker
 make build-worker
 
 # Run the built binary
-./bin/go-grst-boilerplate-worker
+./bin/veemon-worker
 ```
 
 ### Running Multiple Workers
@@ -88,13 +88,13 @@ You can run multiple worker processes for better scalability:
 
 ```bash
 # Terminal 1
-./bin/go-grst-boilerplate-worker
+./bin/veemon-worker
 
 # Terminal 2
-./bin/go-grst-boilerplate-worker
+./bin/veemon-worker
 
 # Terminal 3
-./bin/go-grst-boilerplate-worker
+./bin/veemon-worker
 ```
 
 Each worker process will start its own set of concurrent consumers.
@@ -155,7 +155,7 @@ From your main application, publish messages to be consumed by the worker:
 ```go
 import (
     "context"
-    "go-grst-boilerplate/pkg/rabbitmq"
+    "veemon/pkg/rabbitmq"
 )
 
 // In your service or handler
@@ -189,7 +189,7 @@ Example log output:
 {
   "level": "info",
   "msg": "Starting worker",
-  "service": "go-grst-boilerplate-worker",
+  "service": "veemon-worker",
   "environment": "production"
 }
 {

@@ -1,20 +1,20 @@
 syntax = "proto3";
 
-// Package grst defines custom protobuf options used by this boilerplate to
+// Package veemon defines custom protobuf options used by this boilerplate to
 // declare a service's HTTP surface directly on each RPC. The protoc-gen-fiber
 // plugin reads these options and generates the Go Fiber route registration, so
 // the .proto is the single source of truth for method, path, auth, and rate
 // limiting — no hand-written route tables.
-package grst;
+package veemon;
 
 import "google/protobuf/descriptor.proto";
 
-option go_package = "go-grst-boilerplate/handler/grpc/grst;grst";
+option go_package = "veemon/handler/grpc/veemon;veemon";
 
 // Route declares how an RPC is exposed over REST. Attach it to a method:
 //
 //   rpc GetUser(GetUserReq) returns (UserProfile) {
-//     option (grst.route) = {
+//     option (veemon.route) = {
 //       method: "GET"
 //       path: "/api/v1/users/{id}"
 //       auth: { required: true, roles: ["admin", "superadmin"] }

@@ -2,7 +2,7 @@ version: v2
 # buf runs from the repo root; the Go module now lives under apps/api.
 # Output paths mirror the proto import path under apps/api/handler/grpc:
 #   contract/user/user.proto        -> apps/api/handler/grpc/user/user.pb.go
-#   contract/grst/annotations.proto -> apps/api/handler/grpc/grst/annotations.pb.go
+#   contract/veemon/annotations.proto -> apps/api/handler/grpc/veemon/annotations.pb.go
 plugins:
   - local: protoc-gen-go
     out: apps/api/handler/grpc
@@ -10,7 +10,7 @@ plugins:
   - local: protoc-gen-go-grpc
     out: apps/api/handler/grpc
     opt: paths=source_relative
-  # Generates Fiber route registration from grst.route options. Built into
+  # Generates Fiber route registration from veemon.route options. Built into
   # apps/api/bin by `make -C apps/api proto` before buf runs.
   - local: apps/api/bin/protoc-gen-fiber
     out: apps/api/handler/grpc

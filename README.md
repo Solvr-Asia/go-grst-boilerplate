@@ -1,4 +1,4 @@
-# Go-GRST-Boilerplate
+# Veemon
 
 A production-ready **polyglot monorepo** starter kit. A Go Fiber + gRPC backend,
 a React desktop app, and a LangGraph.js AI service, all sharing one proto contract.
@@ -9,8 +9,8 @@ a React desktop app, and a LangGraph.js AI service, all sharing one proto contra
 apps/api/               Go backend — Fiber REST + gRPC (Domain-Driven Design, Clean Architecture)
 apps/web/               React 19 + TanStack Router + Vite + Tauri (desktop)
 apps/ai/                LangGraph.js agent + workflow service (TypeScript, Hono)
-packages/api-client/    Generated protobuf-es types + typed REST client (@grst/api-client)
-packages/tsconfig/      Shared base tsconfig (@grst/tsconfig)
+packages/api-client/    Generated protobuf-es types + typed REST client (@veemon/api-client)
+packages/tsconfig/      Shared base tsconfig (@veemon/tsconfig)
 contract/               Proto contract — the single source of truth (Go + TypeScript)
 CLAUDE.md / AGENTS.md   AI-assistant guidance (indexes into .claude/)
 .claude/                AI config: settings.json (shared) + rules/, agents/, skills/
@@ -18,7 +18,7 @@ CLAUDE.md / AGENTS.md   AI-assistant guidance (indexes into .claude/)
 
 The `contract/` proto generates Go (into `apps/api`) **and** TypeScript (into
 `packages/api-client`). `web` and `ai` call the existing Fiber REST routes
-through the typed `@grst/api-client` — the Go server is untouched.
+through the typed `@veemon/api-client` — the Go server is untouched.
 
 ### Quickstart
 
@@ -66,8 +66,15 @@ targets from that directory (or via the root `bun run *:api` scripts).
 
 ## Tech Stack
 
+The stack spans the whole monorepo — a Go backend, a React + Tauri desktop app,
+a LangGraph.js AI service, and the shared proto contract + tooling that binds
+them.
+
+### Backend — `apps/api` (Go)
+
 | Component | Technology |
 |-----------|------------|
+| Language | [Go 1.25](https://go.dev/) |
 | Web Framework | [Go Fiber v2](https://gofiber.io/) |
 | gRPC | [google.golang.org/grpc](https://grpc.io/) |
 | ORM | [GORM](https://gorm.io/) |
@@ -85,6 +92,37 @@ targets from that directory (or via the root `bun run *:api` scripts).
 | Metrics | [Prometheus](https://prometheus.io/) |
 | API Docs | [Scalar](https://github.com/yokeTH/gofiber-scalar) |
 
+### Web — `apps/web` (`@veemon/web`)
+
+| Component | Technology |
+|-----------|------------|
+| UI | [React 19](https://react.dev/) |
+| Routing | [TanStack Router](https://tanstack.com/router) |
+| Data fetching | [TanStack Query](https://tanstack.com/query) |
+| Build tool | [Vite 6](https://vite.dev/) |
+| Desktop shell | [Tauri 2](https://tauri.app/) (Rust) |
+| API access | `@veemon/api-client` (typed REST over the Go API) |
+
+### AI — `apps/ai` (`@veemon/ai`)
+
+| Component | Technology |
+|-----------|------------|
+| Agent/graph runtime | [LangGraph.js](https://langchain-ai.github.io/langgraphjs/) |
+| Model | [Anthropic Claude](https://www.anthropic.com/) via [`@langchain/anthropic`](https://js.langchain.com/) |
+| HTTP server | [Hono](https://hono.dev/) (invoke + SSE stream) |
+| Persistence | LangGraph checkpointer — in-memory or [Postgres](https://github.com/langchain-ai/langgraphjs) |
+| Schemas | [Zod](https://zod.dev/) |
+| API access | `@veemon/api-client` (typed REST over the Go API) |
+
+### Contract & tooling (shared)
+
+| Component | Technology |
+|-----------|------------|
+| Proto contract | [Protocol Buffers](https://protobuf.dev/) (`contract/`, single source of truth) |
+| Codegen | [buf](https://buf.build/) → `protoc-gen-go` / `-go-grpc` / `protoc-gen-fiber` (custom) / [protobuf-es](https://github.com/bufbuild/protobuf-es) |
+| Monorepo | [Bun](https://bun.sh/) workspaces + `make` (Go) |
+| CI/CD | GitHub Actions (build, docker, release) |
+
 ## Project Structure
 
 ```
@@ -98,7 +136,7 @@ Veemon/                              # polyglot Bun-workspace monorepo
 │   │   │   └── protoc-gen-fiber/    # buf plugin: generates Fiber routes from proto
 │   │   ├── config/                  # Viper config (+ Validate), bootstrap/DI, infra init
 │   │   ├── handler/                 # Presentation layer (gRPC impl + generated Fiber routes)
-│   │   │   ├── grpc/grst/           # Generated grst.route option types
+│   │   │   ├── grpc/veemon/           # Generated veemon.route option types
 │   │   │   ├── grpc/user/           # Generated protobuf / gRPC / Fiber routes
 │   │   │   └── user_handler.go      # Shared gRPC/HTTP handler implementation
 │   │   ├── app/usecase/             # Business logic layer
@@ -117,21 +155,21 @@ Veemon/                              # polyglot Bun-workspace monorepo
 │   │   ├── .golangci.yml            # Linter config (golangci-lint v2)
 │   │   ├── .goreleaser.yml          # Release config
 │   │   └── go.mod · go.sum
-│   ├── web/                         # React 19 + TanStack Router + Vite + Tauri (@grst/web)
+│   ├── web/                         # React 19 + TanStack Router + Vite + Tauri (@veemon/web)
 │   │   ├── src/                     # App: routes/, lib/, main.tsx, routeTree.gen.ts
 │   │   ├── src-tauri/               # Rust desktop shell (Cargo.toml, tauri.conf.json)
 │   │   ├── index.html · vite.config.ts · tsconfig.json
 │   │   └── README.md
-│   └── ai/                          # LangGraph.js agent + workflow service (@grst/ai)
+│   └── ai/                          # LangGraph.js agent + workflow service (@veemon/ai)
 │       ├── src/                     # domain/, application/, infrastructure/, interface/http, composition.ts
 │       └── README.md
 ├── packages/
-│   ├── api-client/                  # @grst/api-client — generated protobuf-es + typed REST client
-│   │   └── src/gen/                 # Generated TS from contract/ (grst, user)
-│   └── tsconfig/                    # @grst/tsconfig — shared base tsconfig
+│   ├── api-client/                  # @veemon/api-client — generated protobuf-es + typed REST client
+│   │   └── src/gen/                 # Generated TS from contract/ (veemon, user)
+│   └── tsconfig/                    # @veemon/tsconfig — shared base tsconfig
 ├── contract/                        # Proto contract — single source of truth (Go + TS)
-│   ├── grst/annotations.proto       # Custom grst.route option (method/path/auth/rate limit)
-│   └── user/user.proto              # UserApi service with grst.route annotations
+│   ├── veemon/annotations.proto       # Custom veemon.route option (method/path/auth/rate limit)
+│   └── user/user.proto              # UserApi service with veemon.route annotations
 ├── docs/superpowers/                # Design specs & plans (specs/, plans/)
 ├── .github/workflows/               # CI/CD: ci.yml (lint/test/vuln/build/docker), release.yml
 ├── .claude/                         # AI config
@@ -175,8 +213,8 @@ git-ignored.
 ### 1. Clone and Setup
 
 ```bash
-git clone https://github.com/yourusername/go-grst-boilerplate.git
-cd go-grst-boilerplate
+git clone https://github.com/yourusername/veemon.git
+cd veemon
 
 # Copy environment file
 cp .env.example .env
@@ -202,9 +240,9 @@ make migrate
 # API server (HTTP + gRPC). Run directly…
 make run
 
-# …or build and run (Makefile builds bin/go-grst-boilerplate)
+# …or build and run (Makefile builds bin/veemon)
 make build
-./bin/go-grst-boilerplate
+./bin/veemon
 
 # Background worker (RabbitMQ consumer) — separate process
 make run-worker
@@ -247,7 +285,7 @@ essentials:
 
 ```env
 # Application
-SERVICE_NAME=go-grst-boilerplate
+SERVICE_NAME=veemon
 ENVIRONMENT=development           # development | production
 HTTP_PORT=3000
 GRPC_PORT=50051
@@ -257,7 +295,7 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=postgres
-DB_NAME=go_grst_db
+DB_NAME=veemon_db
 DB_SSL_MODE=disable               # use "require" or stricter in production
 DB_AUTO_MIGRATE=false             # dev-only convenience; leave off in prod
 
@@ -557,7 +595,7 @@ This boilerplate uses [failsafe-go](https://failsafe-go.dev/) for resilience pat
 Prevents cascading failures by stopping requests to failing services:
 
 ```go
-import "go-grst-boilerplate/pkg/resilience"
+import "veemon/pkg/resilience"
 
 // Create executor with circuit breaker
 executor := resilience.New[*http.Response](
@@ -607,7 +645,7 @@ endpoints are skipped. The middleware below is the reusable library for adding
 more:
 
 ```go
-import "go-grst-boilerplate/pkg/middleware"
+import "veemon/pkg/middleware"
 
 // Default: 100 requests per minute per IP
 app.Use(middleware.RateLimitMiddleware(middleware.DefaultRateLimitConfig()))
@@ -650,7 +688,7 @@ Legend: ✅ implemented and wired · 📘 pattern documented in `CLAUDE.md` (imp
 ### Security Features
 
 ```go
-// Role-based access control is declared per RPC via grst.route auth options in
+// Role-based access control is declared per RPC via veemon.route auth options in
 // the .proto and generated into user_fiber.pb.go (see "Declaring Routes in Proto").
 
 // Input validation
@@ -699,7 +737,7 @@ default; set `METRICS_AUTH_TOKEN` to require `Authorization: Bearer <token>`
 (not the raw path) as the label to bound cardinality.
 
 ```go
-import "go-grst-boilerplate/pkg/metrics"
+import "veemon/pkg/metrics"
 
 // Initialize metrics
 m := metrics.Init("myapp")
@@ -743,12 +781,12 @@ The server registers these routes during bootstrap.
 
 ```bash
 # Pull latest version
-docker pull ghcr.io/yourusername/go-grst-boilerplate:latest
+docker pull ghcr.io/yourusername/veemon:latest
 
 # Pull specific version (semantic versioning)
-docker pull ghcr.io/yourusername/go-grst-boilerplate:1.0.0
-docker pull ghcr.io/yourusername/go-grst-boilerplate:1.0
-docker pull ghcr.io/yourusername/go-grst-boilerplate:1
+docker pull ghcr.io/yourusername/veemon:1.0.0
+docker pull ghcr.io/yourusername/veemon:1.0
+docker pull ghcr.io/yourusername/veemon:1
 ```
 
 ### Build Image Locally
@@ -843,7 +881,7 @@ your business logic.
 
 ```bash
 make run-worker       # Run the worker (go run ./cmd/worker)
-make build-worker     # Build bin/go-grst-boilerplate-worker
+make build-worker     # Build bin/veemon-worker
 ```
 
 ## Make Commands
@@ -896,14 +934,14 @@ Fiber routes are generated — there is no hand-written route table or auth map 
 keep in sync. Method, path, path/query/body binding, auth policy, and rate limits
 all live in one place: the contract.
 
-Add a `grst.route` option to a method (`contract/user/user.proto`):
+Add a `veemon.route` option to a method (`contract/user/user.proto`):
 
 ```proto
-import "grst/annotations.proto";
+import "veemon/annotations.proto";
 
 service UserApi {
     rpc GetUser(GetUserReq) returns (UserProfile) {
-        option (grst.route) = {
+        option (veemon.route) = {
             method: "GET"
             path: "/api/v1/users/{id}"          // {id} binds to request field `id`
             auth: { required: true roles: ["admin", "superadmin"] }
@@ -911,7 +949,7 @@ service UserApi {
     }
 
     rpc Register(RegisterReq) returns (RegisterRes) {
-        option (grst.route) = {
+        option (veemon.route) = {
             method: "POST"
             path: "/api/v1/auth/register"
             body: true                          // parse JSON body into the request
@@ -934,10 +972,10 @@ generates `apps/api/handler/grpc/user/user_fiber.pb.go` containing:
   declaration**.
 
 Both are wired in `config/bootstrap.go`. To add an endpoint you now: define the
-RPC + messages, annotate it with `grst.route`, run `make proto`, and implement
+RPC + messages, annotate it with `veemon.route`, run `make proto`, and implement
 the method on the handler — no route file to touch.
 
-Options reference (`contract/grst/annotations.proto`): `method`, `path`, `body`,
+Options reference (`contract/veemon/annotations.proto`): `method`, `path`, `body`,
 `auth { required, roles }`, `response` (`RESPONSE_STYLE_OK|_CREATED|_LIST`), and
 `rate_limit { max, window_seconds }`.
 

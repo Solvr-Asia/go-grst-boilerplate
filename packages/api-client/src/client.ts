@@ -1,6 +1,6 @@
 // Thin typed REST client over the Go Fiber routes.
 //
-// Routes and shapes are derived from contract/user/user.proto (grst.route
+// Routes and shapes are derived from contract/user/user.proto (veemon.route
 // options) and apps/api/handler/grpc/user/user_fiber.pb.go. The Go server wraps
 // every REST response in the pkg/response envelope:
 //   success: { success: true, data, meta? }

@@ -1,7 +1,7 @@
 package config
 
 import (
-	"go-grst-boilerplate/pkg/redis"
+	"veemon/pkg/redis"
 )
 
 func NewRedis(cfg *Config) (*redis.Client, error) {

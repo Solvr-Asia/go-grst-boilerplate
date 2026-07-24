@@ -13,9 +13,9 @@ import (
 	"strconv"
 	"testing"
 
-	"go-grst-boilerplate/entity"
-	"go-grst-boilerplate/pkg/database"
-	"go-grst-boilerplate/repository/user_repository"
+	"veemon/entity"
+	"veemon/pkg/database"
+	"veemon/repository/user_repository"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -39,7 +39,7 @@ func testDB(t *testing.T) *gorm.DB {
 		Port:     port,
 		User:     envOr("DB_USER", "postgres"),
 		Password: envOr("DB_PASSWORD", "postgres"),
-		Name:     envOr("DB_NAME", "go_grst_db"),
+		Name:     envOr("DB_NAME", "veemon_db"),
 		SSLMode:  envOr("DB_SSL_MODE", "disable"),
 		Timezone: envOr("DB_TIMEZONE", "UTC"),
 	}, zap.NewNop())

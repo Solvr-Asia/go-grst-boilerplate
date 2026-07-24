@@ -1,4 +1,4 @@
-// Public surface of @grst/api-client.
+// Public surface of @veemon/api-client.
 //
 // - The typed REST client and its lean wire DTOs (the everyday API).
 // - The full protobuf-es message types under the `proto` namespace, generated

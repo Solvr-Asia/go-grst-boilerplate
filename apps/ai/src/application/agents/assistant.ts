@@ -3,7 +3,7 @@ import type { BaseCheckpointSaver } from "@langchain/langgraph";
 import type { LanguageModelLike } from "@langchain/core/language_models/base";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
-const ASSISTANT_PROMPT = `You are a helpful assistant for the GRST platform.
+const ASSISTANT_PROMPT = `You are a helpful assistant for the Veemon platform.
 You can look up registered users with the list_users tool. When asked about
 users, call the tool rather than guessing. Keep answers concise.`;
 

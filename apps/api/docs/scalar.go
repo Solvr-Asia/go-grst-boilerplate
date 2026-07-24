@@ -22,7 +22,7 @@ func SetupScalar(app *fiber.App) {
 
 	// Serve Scalar UI
 	app.Get("/docs/*", scalar.New(scalar.Config{
-		Title:             "Go-GRST-Boilerplate API",
+		Title:             "Veemon API",
 		RawSpecUrl:        "openapi.json",
 		FileContentString: string(specBytes),
 	}))
@@ -33,7 +33,7 @@ func GetOpenAPISpec() map[string]interface{} {
 	return map[string]interface{}{
 		"openapi": "3.0.3",
 		"info": map[string]interface{}{
-			"title":       "Go-GRST-Boilerplate API",
+			"title":       "Veemon API",
 			"description": "A production-ready Go monolithic application boilerplate built with **Go Fiber** for REST API and **gRPC** for service-to-service communication, following **Domain-Driven Design (DDD)** and **Clean Architecture** principles.\n\n### Features\n- 🔐 **PASETO v4** authentication (symmetric encryption)\n- 📊 **Paginated** user listing with search and sort\n- 🗂️ **API versioning** (`/api/v1`)\n- 🔍 **OpenTelemetry** distributed tracing\n- 🐰 **RabbitMQ** message queue integration\n- 💾 **PostgreSQL** with GORM ORM\n\n### Authentication\nAll protected endpoints require a valid PASETO token in the `Authorization` header:\n```\nAuthorization: Bearer v4.local.xxxxx...\n```\nObtain a token via the **Login** endpoint, and refresh it via the **Refresh** endpoint before it expires.",
 			"version":     "1.0.0",
 			"contact": map[string]string{
@@ -496,7 +496,7 @@ func GetOpenAPISpec() map[string]interface{} {
 					"description": "Liveness probe response indicating the service process is running",
 					"properties": map[string]interface{}{
 						"status":  map[string]interface{}{"type": "string", "example": "ok", "description": "Service status — always `ok` if the endpoint responds"},
-						"service": map[string]interface{}{"type": "string", "example": "go-grst-boilerplate", "description": "Service name from configuration"},
+						"service": map[string]interface{}{"type": "string", "example": "veemon", "description": "Service name from configuration"},
 					},
 				},
 				"ReadinessResponse": map[string]interface{}{

@@ -11,7 +11,7 @@ services:
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=postgres
-      - DB_NAME=go_grst_db
+      - DB_NAME=veemon_db
       - DB_SSL_MODE=disable
     depends_on:
       postgres:
@@ -27,7 +27,7 @@ services:
       - "3000:3000"
       - "50051:50051"
     environment:
-      - SERVICE_NAME=go-grst-boilerplate
+      - SERVICE_NAME=veemon
       - ENVIRONMENT=development
       - HTTP_PORT=3000
       - GRPC_PORT=50051
@@ -36,7 +36,7 @@ services:
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=postgres
-      - DB_NAME=go_grst_db
+      - DB_NAME=veemon_db
       - DB_TIMEZONE=Asia/Jakarta
       - DB_SSL_MODE=disable
       # Redis
@@ -59,7 +59,7 @@ services:
       # OpenTelemetry
       - OTEL_ENABLED=true
       - OTEL_ENDPOINT=jaeger:4317
-      - OTEL_SERVICE_NAME=go-grst-boilerplate
+      - OTEL_SERVICE_NAME=veemon
       - OTEL_EXPORTER_TYPE=otlp
       # Logger
       - LOG_LEVEL=info
@@ -88,7 +88,7 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=go_grst_db
+      - POSTGRES_DB=veemon_db
     ports:
       - "5432:5432"
     volumes:

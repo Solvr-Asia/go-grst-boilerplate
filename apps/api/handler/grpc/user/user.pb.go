@@ -7,13 +7,13 @@
 package user
 
 import (
-	_ "go-grst-boilerplate/handler/grpc/grst"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
+	_ "veemon/handler/grpc/veemon"
 )
 
 const (
@@ -871,7 +871,7 @@ var File_user_user_proto protoreflect.FileDescriptor
 
 const file_user_user_proto_rawDesc = "" +
 	"\n" +
-	"\x0fuser/user.proto\x12\x04user\x1a\x1bgoogle/protobuf/empty.proto\x1a\x16grst/annotations.proto\"i\n" +
+	"\x0fuser/user.proto\x12\x04user\x1a\x1bgoogle/protobuf/empty.proto\x1a\x18veemon/annotations.proto\"i\n" +
 	"\vRegisterReq\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x12\n" +
@@ -958,7 +958,7 @@ const file_user_user_proto_rawDesc = "" +
 	"\n" +
 	"DeleteUser\x12\x13.user.DeleteUserReq\x1a\x13.user.DeleteUserRes\"7ڼ\x183\n" +
 	"\x06DELETE\x12\x12/api/v1/users/{id}\"\x15\b\x01\x12\x05admin\x12\n" +
-	"superadminB'Z%go-grst-boilerplate/handler/grpc/userb\x06proto3"
+	"superadminB\x1aZ\x18veemon/handler/grpc/userb\x06proto3"
 
 var (
 	file_user_user_proto_rawDescOnce sync.Once

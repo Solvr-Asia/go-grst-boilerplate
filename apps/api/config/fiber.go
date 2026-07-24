@@ -3,7 +3,7 @@ package config
 import (
 	"time"
 
-	"go-grst-boilerplate/pkg/middleware"
+	"veemon/pkg/middleware"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"

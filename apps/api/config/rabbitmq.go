@@ -1,7 +1,7 @@
 package config
 
 import (
-	"go-grst-boilerplate/pkg/rabbitmq"
+	"veemon/pkg/rabbitmq"
 
 	"go.uber.org/zap"
 )

@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-24
 **Status:** Approved (design)
-**Topic:** Convert `go-grst-boilerplate` into a polyglot starter-kit monorepo
+**Topic:** Convert `veemon` into a polyglot starter-kit monorepo
 
 ---
 
@@ -38,26 +38,26 @@ design→plan→build cycle.
 ## 2. Target Repository Layout
 
 ```
-go-grst-boilerplate/                 ← repo root becomes the monorepo (Bun workspace)
+veemon/                 ← repo root becomes the monorepo (Bun workspace)
 ├── apps/
 │   ├── api/                         ← ALL current Go code, module name unchanged
 │   │   ├── app/ cmd/ config/ database/ entity/ handler/
 │   │   ├── pkg/ repository/ clients/ examples/ migrations/ docs/
 │   │   ├── go.mod  go.sum  Dockerfile  Makefile  .env.example
-│   ├── web/                         ← @grst/web — React + TanStack Router + Vite + Tauri
+│   ├── web/                         ← @veemon/web — React + TanStack Router + Vite + Tauri
 │   │   ├── src/{routes,components,lib}/  main.tsx  index.html
 │   │   ├── src-tauri/               ← Rust desktop shell
 │   │   ├── vite.config.ts  package.json  tsconfig.json
-│   └── ai/                          ← @grst/ai — Mastra.ai service
+│   └── ai/                          ← @veemon/ai — Mastra.ai service
 │       ├── src/mastra/{agents,workflows,tools}/  index.ts
 │       └── package.json  tsconfig.json  .env.example
 ├── packages/
-│   ├── api-client/                  ← @grst/api-client — buf-generated TS types + typed REST client
+│   ├── api-client/                  ← @veemon/api-client — buf-generated TS types + typed REST client
 │   │   ├── src/gen/                 ← protobuf-es output (committed)
 │   │   ├── src/client.ts  src/index.ts  package.json  tsconfig.json
-│   └── tsconfig/                    ← @grst/tsconfig — shared base tsconfig
+│   └── tsconfig/                    ← @veemon/tsconfig — shared base tsconfig
 ├── contract/                        ← proto source of truth (stays at root)
-│   └── user/user.proto  grst/annotations.proto
+│   └── user/user.proto  veemon/annotations.proto
 ├── docs/superpowers/specs/          ← repo-level design docs (this file) — STAYS at root
 ├── buf.yaml  buf.gen.yaml           ← output paths updated (Go→apps/api, +TS→packages/api-client)
 ├── package.json  bun.lock           ← Bun workspaces + root orchestration scripts
@@ -69,19 +69,19 @@ go-grst-boilerplate/                 ← repo root becomes the monorepo (Bun wor
 **Key decisions (approved):**
 - `contract/` stays at repo root (language-neutral; buf already points there).
 - `packages/api-client/src/gen/` is **committed** (fresh clones run without a proto toolchain).
-- Workspace package scope is **`@grst/*`**.
+- Workspace package scope is **`@veemon/*`**.
 
 ---
 
 ## 3. `apps/api` Relocation (keep it green)
 
 **Rule: the Go app moves, it does not change.** Because `go.mod` (module
-`go-grst-boilerplate`) travels with the code, every `go-grst-boilerplate/...` import
+`veemon`) travels with the code, every `veemon/...` import
 stays byte-for-byte identical — the compiler is blind to the directory move.
 
 **Moves into `apps/api/`:** `app/ cmd/ config/ database/ entity/ handler/ pkg/
 repository/ clients/ examples/ migrations/` and the Go docs package (`docs/scalar.go` →
-`apps/api/docs/scalar.go`, still imported as `go-grst-boilerplate/docs`), plus
+`apps/api/docs/scalar.go`, still imported as `veemon/docs`), plus
 `go.mod go.sum Dockerfile Makefile .env.example` and generated `*.pb.go`.
 
 **Stays at repo root:** `contract/`, `buf.yaml`, `docker-compose.yml`, `docs/superpowers/`
@@ -92,7 +92,7 @@ repository/ clients/ examples/ migrations/` and the Go docs package (`docs/scala
 
 | File | Change | Why |
 |------|--------|-----|
-| `buf.gen.yaml` | Go `out: handler/grpc` → `out: apps/api/handler/grpc`; plugin `./bin/protoc-gen-fiber` → `apps/api/bin/protoc-gen-fiber` | buf runs from root; Go lands in the moved module. `go_package` is already `go-grst-boilerplate/handler/grpc/...`, so imports are unchanged. |
+| `buf.gen.yaml` | Go `out: handler/grpc` → `out: apps/api/handler/grpc`; plugin `./bin/protoc-gen-fiber` → `apps/api/bin/protoc-gen-fiber` | buf runs from root; Go lands in the moved module. `go_package` is already `veemon/handler/grpc/...`, so imports are unchanged. |
 | `docker-compose.yml` | `app` + `migrate` build `context: .` → `context: ./apps/api` | Dockerfile now lives in `apps/api`. Infra services (postgres/redis/rabbitmq/jaeger) untouched. |
 | `apps/api/Makefile` | `proto` target builds `protoc-gen-fiber` locally, then `cd ../.. && buf generate` | proto source is one level up |
 | root `package.json` | `api:*` scripts shell to `make -C apps/api …` | Bun orchestrates Go without owning it |
@@ -126,7 +126,7 @@ today. Files moved with `git mv` to preserve history.
 **`buf.gen.yaml` gains a TS output** (`protoc-gen-es`, `target=ts`) → `packages/api-client/src/gen/`.
 No Connect plugin (REST reused).
 
-**`packages/api-client` (`@grst/api-client`):**
+**`packages/api-client` (`@veemon/api-client`):**
 - `src/gen/` — generated protobuf-es message/enum types (committed).
 - `src/client.ts` — `createApiClient({ baseUrl, getToken })` returning typed methods
   (`register`, `login`, `refreshToken`, `getMe`, `logout`, `listUsers`) that call the
@@ -137,7 +137,7 @@ No Connect plugin (REST reused).
 - `src/index.ts` — barrel export.
 - deps: `@bufbuild/protobuf`.
 
-**Why hand-write `client.ts`:** the `grst.route` annotations that drive Go route
+**Why hand-write `client.ts`:** the `veemon.route` annotations that drive Go route
 generation aren't understood by TS codegen, so route knowledge is bridged by hand once,
 here. A `protoc-gen-ts-client` mirroring `protoc-gen-fiber` is the symmetry play — see §7.
 
@@ -146,19 +146,19 @@ here. A `protoc-gen-ts-client` mirroring `protoc-gen-fiber` is the symmetry play
 ## 5. `apps/web` (React + TanStack Router + Vite + Tauri)
 
 ```
-apps/web/                       package: @grst/web
+apps/web/                       package: @veemon/web
 ├── src/
 │   ├── routes/                 ← TanStack Router file-based routes
 │   │   ├── __root.tsx  index.tsx  login.tsx  me.tsx
 │   ├── routeTree.gen.ts        ← generated by @tanstack/router-plugin
-│   ├── lib/{api.ts, auth.ts}   ← configured @grst/api-client + token storage
+│   ├── lib/{api.ts, auth.ts}   ← configured @veemon/api-client + token storage
 │   ├── components/  main.tsx (RouterProvider + QueryClientProvider)  styles.css
 ├── src-tauri/                  ← Rust shell: Cargo.toml, tauri.conf.json, src/main.rs
 ├── index.html  vite.config.ts (react + tanstackRouter plugins)
-├── tsconfig.json (extends @grst/tsconfig)  package.json
+├── tsconfig.json (extends @veemon/tsconfig)  package.json
 ```
 
-- **Data layer:** TanStack Query over `@grst/api-client` (queries for `getMe`/`listUsers`,
+- **Data layer:** TanStack Query over `@veemon/api-client` (queries for `getMe`/`listUsers`,
   mutation for `login`).
 - **Demo flow shipped:** unauthenticated → login page (POST Go `/login`, store PASETO
   token) → authenticated page showing `getMe` + a `listUsers` table. Exercises auth,
@@ -177,20 +177,20 @@ apps/web/                       package: @grst/web
 > Verify exact APIs/model ids from embedded docs at implementation time.
 
 ```
-apps/ai/                        package: @grst/ai
+apps/ai/                        package: @veemon/ai
 ├── src/mastra/
-│   ├── tools/user-tools.ts     ← createTool(...) wrapping @grst/api-client (listUsers, getUserProfile)
+│   ├── tools/user-tools.ts     ← createTool(...) wrapping @veemon/api-client (listUsers, getUserProfile)
 │   ├── agents/assistant-agent.ts ← new Agent({ id, name, instructions, model, tools })
 │   ├── workflows/example-workflow.ts ← one sample multi-step workflow
 │   └── index.ts                ← export const mastra = new Mastra({ agents, workflows })
 ├── .env.example                ← model provider key + API_BASE_URL + optional service token
 ├── tsconfig.json               ← ES2022 / moduleResolution "bundler" (Mastra requirement)
-└── package.json                ← @grst/ai
+└── package.json                ← @veemon/ai
 ```
 
 - **Deps (current Mastra):** `@mastra/core@latest` + `zod@^4`; dev-dep `mastra@latest`.
   Scripts: `dev` → `mastra dev` (Studio :4111), `build` → `mastra build`. Node 20+.
-- **Contract wiring:** `user-tools.ts` `execute` calls `@grst/api-client` against the Go
+- **Contract wiring:** `user-tools.ts` `execute` calls `@veemon/api-client` against the Go
   REST API, so the agent answers data questions by actually hitting Go routes with typed
   req/res. Auth via configurable `API_BASE_URL` + optional service bearer token from `.env`.
 - **Prerequisite:** a model-provider API key is required to *run* the agent (not to
@@ -223,9 +223,9 @@ Per-app scripts stay local; `apps/api` keeps its exact current `make` targets.
 - **api** — existing `go test -race ./...`, unchanged, from `apps/api`.
 - **api-client** — vitest over envelope decode + `ApiError` mapping with mocked `fetch`
   (highest-value TS test: guards the contract boundary).
-- **web** — vitest + Testing Library for login→me with `@grst/api-client` mocked; routes
+- **web** — vitest + Testing Library for login→me with `@veemon/api-client` mocked; routes
   compile-time-checked by TanStack Router.
-- **ai** — vitest over `user-tools` with `@grst/api-client` mocked (no live model in CI).
+- **ai** — vitest over `user-tools` with `@veemon/api-client` mocked (no live model in CI).
 
 **Error handling (one boundary):** `client.ts` is the sole place the `{success,error}`
 envelope is decoded → downstream gets typed data or a thrown `ApiError`. `web` renders it
@@ -242,9 +242,9 @@ typecheck/test, triggered only on their paths. `release.yml` Go build paths gain
 
 1. **Relocate Go → `apps/api`**; fix buf/compose/Makefile paths.
    **Gate:** `cd apps/api && make proto && go build ./... && go test -race ./...` green.
-2. **Workspace + contract**: root Bun workspace, `@grst/tsconfig`, `packages/api-client`
+2. **Workspace + contract**: root Bun workspace, `@veemon/tsconfig`, `packages/api-client`
    (add TS output to buf, write `client.ts`).
-   **Gate:** `bun run proto` emits TS; `@grst/api-client` builds & its vitest passes.
+   **Gate:** `bun run proto` emits TS; `@veemon/api-client` builds & its vitest passes.
 3. **Scaffold `apps/web`** (Vite/React/TanStack/Tauri, login→me flow).
    **Gate:** login→me works against a locally running `apps/api`.
 4. **Scaffold `apps/ai`** (Mastra agent + `user-tools` calling the client).
@@ -262,14 +262,14 @@ typecheck/test, triggered only on their paths. `release.yml` Go build paths gain
 | `docs/superpowers/` swept into `apps/api` during move | Move only the Go docs package (`docs/scalar.go`); keep `docs/superpowers/` at root. |
 | Tauri needs Rust toolchain | Browser dev (`bun run dev`) works without it; Tauri is opt-in. Documented prerequisite. |
 | Mastra needs a model API key | Required only to *run* the agent, not to build/test; tools mocked in CI. |
-| Hand-written `client.ts` drifts from `grst.route` | Documented; deferred `protoc-gen-ts-client` restores full generation symmetry. |
+| Hand-written `client.ts` drifts from `veemon.route` | Documented; deferred `protoc-gen-ts-client` restores full generation symmetry. |
 | CI paths assume root Go | Step 5 updates `ci.yml`/`release.yml` with `apps/api` working-directory + path filters. |
 
 ---
 
 ## 10. Future Follow-ups (out of scope this pass)
 
-- `protoc-gen-ts-client` — generate the typed REST client from `grst.route` (mirrors `protoc-gen-fiber`).
+- `protoc-gen-ts-client` — generate the typed REST client from `veemon.route` (mirrors `protoc-gen-fiber`).
 - ConnectRPC end-to-end (Approach C) — typed streaming RPC for web/ai.
 - Shared Go module via `go.work` if a second Go service appears.
 - Shared UI package (`packages/ui`) once `web` grows.

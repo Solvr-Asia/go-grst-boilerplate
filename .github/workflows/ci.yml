@@ -136,10 +136,10 @@ jobs:
         run: bun run build:client
 
       - name: Typecheck
-        run: bun --filter '@grst/api-client' --filter '@grst/web' --filter '@grst/ai' run typecheck
+        run: bun --filter '@veemon/api-client' --filter '@veemon/web' --filter '@veemon/ai' run typecheck
 
       - name: Test
-        run: bun --filter '@grst/api-client' --filter '@grst/web' --filter '@grst/ai' run test
+        run: bun --filter '@veemon/api-client' --filter '@veemon/web' --filter '@veemon/ai' run test
 
       - name: Build web (browser bundle)
         run: bun run build:web

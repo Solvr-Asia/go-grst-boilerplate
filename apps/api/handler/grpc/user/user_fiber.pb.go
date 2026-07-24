@@ -6,16 +6,16 @@ package user
 import (
 	context "context"
 	v2 "github.com/gofiber/fiber/v2"
-	errors "go-grst-boilerplate/pkg/errors"
-	middleware "go-grst-boilerplate/pkg/middleware"
-	response "go-grst-boilerplate/pkg/response"
 	proto "google.golang.org/protobuf/proto"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	time "time"
+	errors "veemon/pkg/errors"
+	middleware "veemon/pkg/middleware"
+	response "veemon/pkg/response"
 )
 
 // UserApiAuthConfig maps each gRPC full-method name to its auth policy.
-// It is derived from the grst.route auth options and consumed by the gRPC
+// It is derived from the veemon.route auth options and consumed by the gRPC
 // auth interceptor so gRPC and REST enforce the same rules.
 var UserApiAuthConfig = map[string]middleware.AuthConfig{
 	"/user.UserApi/Register":     middleware.AuthConfig{NeedAuth: false, AllowedRoles: nil},
