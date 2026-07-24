@@ -1,16 +1,24 @@
 version: v2
-# Output paths mirror the proto import path under handler/grpc:
-#   contract/user/user.proto        -> handler/grpc/user/user.pb.go
-#   contract/grst/annotations.proto -> handler/grpc/grst/annotations.pb.go
+# buf runs from the repo root; the Go module now lives under apps/api.
+# Output paths mirror the proto import path under apps/api/handler/grpc:
+#   contract/user/user.proto        -> apps/api/handler/grpc/user/user.pb.go
+#   contract/grst/annotations.proto -> apps/api/handler/grpc/grst/annotations.pb.go
 plugins:
   - local: protoc-gen-go
-    out: handler/grpc
+    out: apps/api/handler/grpc
     opt: paths=source_relative
   - local: protoc-gen-go-grpc
-    out: handler/grpc
+    out: apps/api/handler/grpc
     opt: paths=source_relative
   # Generates Fiber route registration from grst.route options. Built into
-  # ./bin by `make proto` before this template runs.
-  - local: ./bin/protoc-gen-fiber
-    out: handler/grpc
+  # apps/api/bin by `make -C apps/api proto` before buf runs.
+  - local: apps/api/bin/protoc-gen-fiber
+    out: apps/api/handler/grpc
     opt: paths=source_relative
+  # TypeScript message types (protobuf-es) shared by apps/web and apps/ai.
+  # Resolved from the api-client workspace's local bin (Bun isolated store).
+  - local: packages/api-client/node_modules/.bin/protoc-gen-es
+    out: packages/api-client/src/gen
+    opt:
+      - target=ts
+      - import_extension=js

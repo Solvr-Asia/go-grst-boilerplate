@@ -1,6 +1,46 @@
 # Go-GRST-Boilerplate
 
-A production-ready Go monolithic application boilerplate using **Go Fiber** for REST API, **gRPC** for service-to-service communication, with **Domain-Driven Design (DDD)** and **Clean Architecture**.
+A production-ready **polyglot monorepo** starter kit. A Go Fiber + gRPC backend,
+a React desktop app, and a Mastra.ai service, all sharing one proto contract.
+
+## Monorepo
+
+```
+apps/api/               Go backend — Fiber REST + gRPC (Domain-Driven Design, Clean Architecture)
+apps/web/               React 19 + TanStack Router + Vite + Tauri (desktop)
+apps/ai/                Mastra.ai agent service (TypeScript)
+packages/api-client/    Generated protobuf-es types + typed REST client (@grst/api-client)
+packages/tsconfig/      Shared base tsconfig (@grst/tsconfig)
+contract/               Proto contract — the single source of truth (Go + TypeScript)
+```
+
+The `contract/` proto generates Go (into `apps/api`) **and** TypeScript (into
+`packages/api-client`). `web` and `ai` call the existing Fiber REST routes
+through the typed `@grst/api-client` — the Go server is untouched.
+
+### Quickstart
+
+```bash
+# Prerequisites: Go 1.25+, Bun 1.3+, buf (go install github.com/bufbuild/buf/cmd/buf@latest)
+bun install                 # install all TS workspaces
+bun run proto               # regenerate Go + TS clients from contract/*.proto
+bun run dev                 # run api (:3000) + web (:5173) + ai (:4111) together
+
+# Or per app:
+bun run dev:api             # Go server (make -C apps/api dev)
+bun run dev:web             # Vite dev server (browser)
+bun run dev:ai              # Mastra Studio
+
+bun run build               # build all workspaces
+bun run test                # go test -race (api) + bun tests (ts)
+```
+
+**Prerequisites for specific apps:** the `web` desktop build (Tauri) needs a
+**Rust toolchain**; the browser dev flow does not. Running the `ai` agent needs a
+**model provider API key**. See `apps/web/README.md` and `apps/ai/README.md`.
+
+Everything below documents the **Go backend** (`apps/api`); run its `make`
+targets from that directory (or via the root `bun run *:api` scripts).
 
 ## Features
 

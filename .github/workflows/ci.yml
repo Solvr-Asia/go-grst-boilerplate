@@ -11,7 +11,7 @@ env:
 
 jobs:
   lint:
-    name: Lint
+    name: Lint (Go)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -22,15 +22,20 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+          cache-dependency-path: apps/api/go.sum
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
           version: latest
+          working-directory: apps/api
 
   test:
-    name: Test
+    name: Test (Go)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -40,6 +45,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+          cache-dependency-path: apps/api/go.sum
 
       - name: Download dependencies
         run: go mod download
@@ -54,25 +60,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage
-          path: coverage.out
+          path: apps/api/coverage.out
           retention-days: 7
 
   vuln:
-    name: Vulnerability Scan
+    name: Vulnerability Scan (Go)
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run govulncheck
-        uses: golang/govulncheck-action@v1
-        with:
-          go-version-input: ${{ env.GO_VERSION }}
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: [lint, test, vuln]
+    defaults:
+      run:
+        working-directory: apps/api
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -82,6 +78,31 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+          cache-dependency-path: apps/api/go.sum
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        run: govulncheck ./...
+
+  build:
+    name: Build (Go)
+    runs-on: ubuntu-latest
+    needs: [lint, test, vuln]
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: apps/api/go.sum
 
       - name: Build binaries
         run: |
@@ -93,8 +114,35 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: binaries
-          path: bin/
+          path: apps/api/bin/
           retention-days: 7
+
+  frontend:
+    name: Frontend (TS workspaces)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build api-client (types consumed by web + ai)
+        run: bun run build:client
+
+      - name: Typecheck
+        run: bun --filter '@grst/api-client' --filter '@grst/web' --filter '@grst/ai' run typecheck
+
+      - name: Test
+        run: bun --filter '@grst/api-client' --filter '@grst/web' --filter '@grst/ai' run test
+
+      - name: Build web (browser bundle)
+        run: bun run build:web
 
   docker:
     name: Docker Build
@@ -133,7 +181,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ./apps/api
           push: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

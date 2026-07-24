@@ -1,0 +1,30 @@
+{
+  "name": "go-grst-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "apps/ai",
+    "packages/*"
+  ],
+  "scripts": {
+    "proto": "make -C apps/api proto",
+    "build": "bun run build:client && bun run build:web && bun run build:ai && bun run build:api",
+    "build:api": "make -C apps/api build",
+    "build:client": "bun --filter @grst/api-client run build",
+    "build:web": "bun --filter @grst/web run build",
+    "build:ai": "bun --filter @grst/ai run build",
+    "test": "bun run test:api && bun run test:ts",
+    "test:api": "cd apps/api && go test -race ./...",
+    "test:ts": "bun --filter '@grst/api-client' --filter '@grst/web' --filter '@grst/ai' run test",
+    "typecheck": "bun --filter '@grst/api-client' --filter '@grst/web' --filter '@grst/ai' run typecheck",
+    "dev:api": "make -C apps/api dev",
+    "dev:web": "bun --filter @grst/web run dev",
+    "dev:ai": "bun --filter @grst/ai run dev",
+    "dev": "concurrently -n api,web,ai -c blue,green,magenta 'bun run dev:api' 'bun run dev:web' 'bun run dev:ai'"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  }
+}

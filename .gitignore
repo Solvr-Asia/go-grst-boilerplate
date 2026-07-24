@@ -52,3 +52,15 @@ openspec
 .qoder/
 .kiro/
 .cursor/
+
+# JS/TS (Bun workspaces)
+node_modules/
+*.tsbuildinfo
+.turbo/
+
+# Mastra build output
+.mastra/
+
+# Tauri (Rust build output)
+apps/web/src-tauri/target/
+apps/web/src-tauri/gen/
