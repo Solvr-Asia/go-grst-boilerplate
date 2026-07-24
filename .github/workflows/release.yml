@@ -26,6 +26,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+          cache-dependency-path: apps/api/go.sum
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
@@ -33,6 +34,7 @@ jobs:
           distribution: goreleaser
           version: latest
           args: release --clean
+          workdir: apps/api
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -81,7 +83,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ./apps/api
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
