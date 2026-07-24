@@ -4,20 +4,24 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "mastra dev",
-    "build": "mastra build",
+    "dev": "bun run --watch src/main.ts",
+    "start": "bun run src/main.ts",
+    "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test": "bun test"
   },
   "dependencies": {
     "@grst/api-client": "*",
-    "@mastra/core": "latest",
-    "zod": "^4.0.0"
+    "@langchain/anthropic": "latest",
+    "@langchain/core": "latest",
+    "@langchain/langgraph": "latest",
+    "@langchain/langgraph-checkpoint-postgres": "latest",
+    "hono": "latest",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@grst/tsconfig": "*",
     "@types/bun": "^1.1.14",
-    "mastra": "latest",
     "typescript": "^5.7.3"
   }
 }

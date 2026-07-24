@@ -5,7 +5,7 @@ content as [CLAUDE.md](CLAUDE.md) — kept here for tools that look for `AGENTS.
 The authoritative, modular rules live under [`.claude/`](.claude/).
 
 This repo is a **polyglot Bun-workspace monorepo**: a Go backend (`apps/api`), a
-React + Tauri client (`apps/web`), and a Mastra.ai service (`apps/ai`), sharing
+React + Tauri client (`apps/web`), and a LangGraph.js service (`apps/ai`), sharing
 one proto contract (`contract/`). Rules below target `apps/api` (the Go backend)
 unless noted; start with
 [rules/project-overview.md](.claude/rules/project-overview.md).

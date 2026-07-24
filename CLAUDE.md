@@ -6,7 +6,7 @@ small, focused file. Read the rule that matches the task; treat these as
 authoritative for `apps/api` (the Go backend).
 
 > This repo is a **polyglot Bun-workspace monorepo** — a Go backend (`apps/api`),
-> a React + Tauri client (`apps/web`), and a Mastra.ai service (`apps/ai`),
+> a React + Tauri client (`apps/web`), and a LangGraph.js service (`apps/ai`),
 > sharing one proto contract (`contract/`). Start with
 > [rules/project-overview.md](.claude/rules/project-overview.md).
 

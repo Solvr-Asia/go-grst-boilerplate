@@ -2,7 +2,7 @@
 
 This repo is a **polyglot Bun-workspace monorepo**. The Go backend lives in
 `apps/api` (all Go paths in these rules are relative to it); `apps/web` is a
-React + TanStack Router + Tauri client and `apps/ai` is a Mastra.ai service, both
+React + TanStack Router + Tauri client and `apps/ai` is a LangGraph.js service, both
 consuming the Go API through the generated `@grst/api-client`
 (`packages/api-client`). The proto contract in `contract/` (repo root) is the
 single source of truth generating Go **and** TypeScript. See the layout below and
@@ -30,7 +30,7 @@ The Go backend (`apps/api`) is a Go monolithic application using:
 ```
 apps/api/       → Go backend (Fiber REST + gRPC) — the module the rules describe
 apps/web/       → React + TanStack Router + Vite + Tauri (@grst/web)
-apps/ai/        → Mastra.ai agent service (@grst/ai)
+apps/ai/        → LangGraph.js agent + workflow service (@grst/ai, Hono HTTP)
 packages/api-client/ → generated protobuf-es types + typed REST client (@grst/api-client)
 packages/tsconfig/   → shared base tsconfig (@grst/tsconfig)
 contract/       → proto source of truth (repo root) — generates Go + TS

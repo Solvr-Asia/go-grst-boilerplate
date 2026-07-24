@@ -1,14 +1,14 @@
 # Go-GRST-Boilerplate
 
 A production-ready **polyglot monorepo** starter kit. A Go Fiber + gRPC backend,
-a React desktop app, and a Mastra.ai service, all sharing one proto contract.
+a React desktop app, and a LangGraph.js AI service, all sharing one proto contract.
 
 ## Monorepo
 
 ```
 apps/api/               Go backend — Fiber REST + gRPC (Domain-Driven Design, Clean Architecture)
 apps/web/               React 19 + TanStack Router + Vite + Tauri (desktop)
-apps/ai/                Mastra.ai agent service (TypeScript)
+apps/ai/                LangGraph.js agent + workflow service (TypeScript, Hono)
 packages/api-client/    Generated protobuf-es types + typed REST client (@grst/api-client)
 packages/tsconfig/      Shared base tsconfig (@grst/tsconfig)
 contract/               Proto contract — the single source of truth (Go + TypeScript)
@@ -31,7 +31,7 @@ bun run dev                 # run api (:3000) + web (:5173) + ai (:4111) togethe
 # Or per app:
 bun run dev:api             # Go server (make -C apps/api dev)
 bun run dev:web             # Vite dev server (browser)
-bun run dev:ai              # Mastra Studio
+bun run dev:ai              # LangGraph service (Hono, :4111)
 
 bun run build               # build all workspaces
 bun run test                # go test -race (api) + bun tests (ts)
@@ -122,8 +122,8 @@ Veemon/                              # polyglot Bun-workspace monorepo
 │   │   ├── src-tauri/               # Rust desktop shell (Cargo.toml, tauri.conf.json)
 │   │   ├── index.html · vite.config.ts · tsconfig.json
 │   │   └── README.md
-│   └── ai/                          # Mastra.ai agent service (@grst/ai)
-│       ├── src/mastra/              # agents/, tools/, workflows/, api.ts, index.ts
+│   └── ai/                          # LangGraph.js agent + workflow service (@grst/ai)
+│       ├── src/                     # domain/, application/, infrastructure/, interface/http, composition.ts
 │       └── README.md
 ├── packages/
 │   ├── api-client/                  # @grst/api-client — generated protobuf-es + typed REST client
