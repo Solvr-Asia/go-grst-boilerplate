@@ -27,6 +27,16 @@ Running the agent requires a **model provider API key** (`.env`, see
 `AI_MODEL` (`"provider/model-name"`, default `anthropic/claude-sonnet-4-5`) and
 the target API with `API_BASE_URL` / `API_SERVICE_TOKEN`.
 
+## Security notes
+
+The agent's tools call the API with the **service** identity (`API_SERVICE_TOKEN`),
+not the end user's. If the agent is exposed to untrusted input, prompt injection
+can make it call a tool and pull data (including PII) into the model context. The
+LLM is not an authorization boundary. Before going beyond a demo: scope
+`API_SERVICE_TOKEN` to least privilege (never reuse an admin token), keep
+authorization on the API side, prefer aggregates over raw PII, and add guardrails
+/ approval for sensitive tools. See the header of `src/mastra/tools/user-tools.ts`.
+
 ## Test
 
 ```bash

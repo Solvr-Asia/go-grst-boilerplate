@@ -32,6 +32,16 @@ Generate the bundle icons once (writes `src-tauri/icons/`):
 bun --filter @grst/web run tauri icon path/to/logo.png
 ```
 
+## Security notes
+
+- **Token storage:** the auth token is kept in `localStorage` (`src/lib/auth.ts`)
+  so the browser build works without server changes. This is readable by any
+  script on the page — an XSS bug can steal it. For production, swap the storage
+  seam for httpOnly cookies, in-memory + refresh, or the Tauri secure store.
+- **CSP:** `src-tauri/tauri.conf.json` sets a restrictive `connect-src` that
+  includes `http://localhost:3000`. Update it to match your real
+  `VITE_API_BASE_URL` — do not widen it to `*`.
+
 ## Routes
 
 File-based (`src/routes/`), compiled to a typed route tree

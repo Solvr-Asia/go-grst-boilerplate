@@ -1,5 +1,14 @@
-// PASETO token storage. Browser build uses localStorage; a Tauri build could
-// swap this for the Tauri store/secure storage without touching callers.
+// PASETO token storage.
+//
+// SECURITY TRADEOFF: this scaffold uses localStorage so the browser build works
+// with zero server changes (Approach A). localStorage is readable by any script
+// on the page, so a successful XSS lets an attacker exfiltrate the token. Harden
+// for production by choosing one of:
+//   - httpOnly, Secure, SameSite cookies (needs the API to set/read cookies), or
+//   - keeping the token in memory only (lost on reload; pair with a refresh flow), or
+//   - the Tauri secure store / OS keychain for the desktop build.
+// The getToken/setToken/clearToken interface is the single seam to swap — callers
+// don't change.
 const KEY = "grst.token";
 
 export function getToken(): string | null {
