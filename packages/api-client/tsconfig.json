@@ -1,0 +1,7 @@
+{
+  "extends": "@grst/tsconfig/base.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src"]
+}

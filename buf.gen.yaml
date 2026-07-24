@@ -15,3 +15,10 @@ plugins:
   - local: apps/api/bin/protoc-gen-fiber
     out: apps/api/handler/grpc
     opt: paths=source_relative
+  # TypeScript message types (protobuf-es) shared by apps/web and apps/ai.
+  # Resolved from the api-client workspace's local bin (Bun isolated store).
+  - local: packages/api-client/node_modules/.bin/protoc-gen-es
+    out: packages/api-client/src/gen
+    opt:
+      - target=ts
+      - import_extension=js
